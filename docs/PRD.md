@@ -41,6 +41,8 @@
     - [Encryption by Default](#encryption-by-default)
     - [Per-Transfer Ephemeral Credentials](#per-transfer-ephemeral-credentials)
     - [Agent Authentication](#agent-authentication)
+    - [User Authentication](#user-authentication)
+    - [User Authorization](#user-authorization)
   - [5.5 User Interfaces](#55-user-interfaces)
     - [Web UI — Transfer Management](#web-ui-transfer-management)
     - [Web UI — Agent Overview](#web-ui-agent-overview)
@@ -53,6 +55,8 @@
     - [Transfer Autonomy from Control Plane](#transfer-autonomy-from-control-plane)
   - [5.7 Kubernetes-Native Integration](#57-kubernetes-native-integration)
     - [VolumeTransfer CRD](#volumetransfer-crd)
+  - [5.8 Documentation](#58-documentation)
+    - [Documentation Suite](#documentation-suite)
 - [6. Non-Functional Requirements](#6-non-functional-requirements)
   - [6.1 NFR Inclusions](#61-nfr-inclusions)
     - [Transfer Throughput — Intra-Cluster](#transfer-throughput-intra-cluster)
@@ -60,6 +64,8 @@
     - [Bounded Failure Cost](#bounded-failure-cost)
     - [Transfer Initiation Time](#transfer-initiation-time)
     - [Progress Reporting Latency](#progress-reporting-latency)
+    - [Control Plane Availability](#control-plane-availability)
+    - [Control Plane State Recovery](#control-plane-state-recovery)
   - [6.2 NFR Exclusions](#62-nfr-exclusions)
 - [7. Public Library Interfaces](#7-public-library-interfaces)
   - [7.1 Public API Surface](#71-public-api-surface)
@@ -193,8 +199,6 @@ This process is repeated up to ~10 times per week, with volumes ranging from 200
 - Control plane requires outbound S3 API access for cross-cluster transfers
 - Agents initiate outbound connections to the control plane — no inbound connectivity to clusters required
 - Deployed as Kubernetes workloads: DaemonSet (agents) and Deployment (control plane)
-- Language: Go (Kubernetes ecosystem standard)
-- License: Apache 2.0 (OSS-ready)
 
 ## 4. Scope
 
@@ -398,6 +402,26 @@ Agents **MUST** authenticate to the control plane using cluster identity credent
 
 **Actors**: `cpt-katapult-actor-agent`, `cpt-katapult-actor-control-plane`
 
+#### User Authentication
+
+- [ ] `p1` - **ID**: `cpt-katapult-fr-user-auth`
+
+The system **MUST** require authentication for all human access to the Web UI and API. The system **MUST** support local username/password authentication as a baseline. The system **MUST** support SSO integration via OIDC-compatible identity providers for enterprise environments. Authenticated sessions **MUST** expire after a configurable idle timeout (default: 30 minutes).
+
+**Rationale**: Human operators initiate transfers of multi-TB blockchain data across production clusters. Unauthenticated access would allow unauthorized transfers and data exposure.
+
+**Actors**: `cpt-katapult-actor-infra-engineer`, `cpt-katapult-actor-support-engineer`
+
+#### User Authorization
+
+- [ ] `p1` - **ID**: `cpt-katapult-fr-user-authz`
+
+The system **MUST** enforce role-based access control with at least two roles: **operator** (full access: initiate, monitor, cancel transfers; override transfer strategy; manage agent configuration) and **viewer** (monitor transfers, view agent status; no transfer initiation or cancellation). Infrastructure engineers **MUST** be assignable to the operator role. Support engineers **MUST** be assignable to either role based on organizational policy. Role assignment **MUST** be configurable by administrators.
+
+**Rationale**: Support engineers need guided, bounded access to prevent accidental misconfiguration. Infrastructure engineers need full operational control including strategy overrides and agent management.
+
+**Actors**: `cpt-katapult-actor-infra-engineer`, `cpt-katapult-actor-support-engineer`
+
 ### 5.5 User Interfaces
 
 #### Web UI — Transfer Management
@@ -494,6 +518,18 @@ The system **MUST** model each transfer as a Kubernetes Custom Resource (`Volume
 
 **Actors**: `cpt-katapult-actor-infra-engineer`
 
+### 5.8 Documentation
+
+#### Documentation Suite
+
+- [ ] `p2` - **ID**: `cpt-katapult-fr-documentation`
+
+The system **MUST** provide: CLI help text and usage examples built into the `katapult` binary, API reference documentation (OpenAPI specification for REST endpoints), a support engineer onboarding guide sufficient for completing a first transfer within 10 minutes, and a deployment/operations guide covering installation, agent setup, S3 configuration, and troubleshooting.
+
+**Rationale**: The 10-minute onboarding target for support engineers requires documented guides. OSS adoption depends on clear documentation for deployment and operation.
+
+**Actors**: `cpt-katapult-actor-infra-engineer`, `cpt-katapult-actor-support-engineer`
+
 ## 6. Non-Functional Requirements
 
 ### 6.1 NFR Inclusions
@@ -547,6 +583,26 @@ Transfer progress updates **MUST** be visible in the Web UI within 5 seconds of 
 **Threshold**: ≤5 seconds end-to-end latency (agent → control plane → UI)
 
 **Rationale**: Real-time progress is a core value proposition; stale progress undermines operator confidence.
+
+#### Control Plane Availability
+
+- [ ] `p2` - **ID**: `cpt-katapult-nfr-cp-availability`
+
+The control plane targets best-effort availability with single-replica deployment in v1. Planned maintenance **MUST** be communicated to operators in advance. Active transfers **MUST** continue during control plane downtime (per FR `cpt-katapult-fr-transfer-autonomy`). New transfer initiation is unavailable during control plane downtime.
+
+**Threshold**: Best-effort (single replica, no HA); active transfers unaffected by CP outage
+
+**Rationale**: Explicit acknowledgment of v1 availability limitations. HA is deferred to post-v1 (see Out of Scope).
+
+#### Control Plane State Recovery
+
+- [ ] `p2` - **ID**: `cpt-katapult-nfr-cp-recovery`
+
+The control plane state (transfer history, agent registry, configuration) **MUST** be recoverable after a full data loss. Agent registry **MUST** be rebuilt automatically when agents reconnect. Transfer history RPO is best-effort in v1 — operators accept potential loss of historical records. The control plane **MUST** be restorable to operational state (accepting new transfers) within 30 minutes of a clean redeployment.
+
+**Threshold**: RTO <30 minutes (clean redeploy); RPO best-effort for transfer history; agent registry auto-rebuilds
+
+**Rationale**: Single-replica deployment means control plane data is vulnerable to PV failure. Explicit recovery expectations enable operations planning.
 
 ### 6.2 NFR Exclusions
 
@@ -772,6 +828,14 @@ Transfer progress updates **MUST** be visible in the Web UI within 5 seconds of 
 - Both source and destination PVCs exist and are provisioned before transfer initiation
 - Node-local storage (TopoLVM, OpenEBS) creates node-affinity constraints that the agent resolves locally
 - The control plane has a single publicly reachable endpoint that all agents can connect to
+
+**Open Questions**
+
+| # | Question | Owner | Target Date | Impact if Unresolved |
+|---|----------|-------|-------------|----------------------|
+| 1 | S3 bucket topology: shared bucket across all clusters or per-cluster buckets? | Infra team | v0.1 design phase | Cross-cluster transfer architecture blocked |
+| 2 | S3 credential model: require STS support or support presigned URL fallback from v0.1? | Infra team | v0.1 design phase | OSS adopters on non-AWS S3 stores cannot use cross-cluster transfers |
+| 3 | User authentication method: standalone identity store or delegate to external OIDC provider? | Platform team | v0.1 design phase | Web UI and API access control cannot be implemented |
 
 ## 12. Risks
 
