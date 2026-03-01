@@ -1,0 +1,9 @@
+# Cypilot artifacts registry
+
+[[systems]]
+name = "Katapult"
+slug = "katapult"
+kit = "cypilot-sdlc"
+artifacts = []
+codebase = []
+children = []
