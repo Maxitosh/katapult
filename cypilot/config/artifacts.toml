@@ -4,6 +4,8 @@
 name = "Katapult"
 slug = "katapult"
 kit = "cypilot-sdlc"
-artifacts = []
+artifacts = [
+  { path = "docs/PRD.md", kind = "PRD" },
+]
 codebase = []
 children = []
