@@ -1,0 +1,1 @@
+ALTER TABLE agents ADD COLUMN jwt_namespace TEXT NOT NULL DEFAULT '';

@@ -18,7 +18,7 @@ func TestRegisterAgent_NewAgent(t *testing.T) {
 	tools := domain.ToolVersions{Tar: "1.35", Zstd: "1.5.5", Stunnel: "5.72"}
 	pvcs := []domain.PVCInfo{{PVCName: "ns/pvc1", SizeBytes: 1024, StorageClass: "local", NodeAffinity: "node1"}}
 
-	id, err := svc.RegisterAgent(context.Background(), "cluster-a", "node-1", tools, pvcs)
+	id, err := svc.RegisterAgent(context.Background(), "cluster-a", "node-1", tools, pvcs, "katapult-ns")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -42,6 +42,9 @@ func TestRegisterAgent_NewAgent(t *testing.T) {
 	if len(agent.PVCs) != 1 {
 		t.Fatalf("expected 1 PVC, got %d", len(agent.PVCs))
 	}
+	if agent.JWTNamespace != "katapult-ns" {
+		t.Fatalf("expected jwt_namespace %q, got %q", "katapult-ns", agent.JWTNamespace)
+	}
 }
 
 func TestRegisterAgent_ReRegistration(t *testing.T) {
@@ -49,8 +52,8 @@ func TestRegisterAgent_ReRegistration(t *testing.T) {
 	svc := NewService(repo, slog.Default())
 	tools := domain.ToolVersions{Tar: "1.35", Zstd: "1.5.5", Stunnel: "5.72"}
 
-	id1, _ := svc.RegisterAgent(context.Background(), "cluster-a", "node-1", tools, nil)
-	id2, _ := svc.RegisterAgent(context.Background(), "cluster-a", "node-1", tools, nil)
+	id1, _ := svc.RegisterAgent(context.Background(), "cluster-a", "node-1", tools, nil, "katapult-ns")
+	id2, _ := svc.RegisterAgent(context.Background(), "cluster-a", "node-1", tools, nil, "katapult-ns")
 
 	if id1 != id2 {
 		t.Fatalf("re-registration should return same ID, got %s and %s", id1, id2)
@@ -62,9 +65,45 @@ func TestRegisterAgent_InvalidTools(t *testing.T) {
 	svc := NewService(repo, slog.Default())
 	tools := domain.ToolVersions{Tar: "1.20", Zstd: "1.5.5", Stunnel: "5.72"}
 
-	_, err := svc.RegisterAgent(context.Background(), "cluster-a", "node-1", tools, nil)
+	_, err := svc.RegisterAgent(context.Background(), "cluster-a", "node-1", tools, nil, "katapult-ns")
 	if err == nil {
 		t.Fatal("expected error for invalid tools")
+	}
+}
+
+func TestRegisterAgent_JWTNamespaceMismatch(t *testing.T) {
+	repo := testutil.NewMemRepo()
+	svc := NewService(repo, slog.Default())
+	tools := domain.ToolVersions{Tar: "1.35", Zstd: "1.5.5", Stunnel: "5.72"}
+
+	_, err := svc.RegisterAgent(context.Background(), "cluster-a", "node-1", tools, nil, "namespace-a")
+	if err != nil {
+		t.Fatalf("unexpected error on first registration: %v", err)
+	}
+
+	_, err = svc.RegisterAgent(context.Background(), "cluster-a", "node-1", tools, nil, "namespace-b")
+	if err == nil {
+		t.Fatal("expected error for JWT namespace mismatch")
+	}
+}
+
+func TestRegisterAgent_JWTNamespaceConsistent(t *testing.T) {
+	repo := testutil.NewMemRepo()
+	svc := NewService(repo, slog.Default())
+	tools := domain.ToolVersions{Tar: "1.35", Zstd: "1.5.5", Stunnel: "5.72"}
+
+	id1, err := svc.RegisterAgent(context.Background(), "cluster-a", "node-1", tools, nil, "namespace-a")
+	if err != nil {
+		t.Fatalf("unexpected error on first registration: %v", err)
+	}
+
+	id2, err := svc.RegisterAgent(context.Background(), "cluster-a", "node-1", tools, nil, "namespace-a")
+	if err != nil {
+		t.Fatalf("unexpected error on re-registration with same namespace: %v", err)
+	}
+
+	if id1 != id2 {
+		t.Fatalf("re-registration should return same ID, got %s and %s", id1, id2)
 	}
 }
 
@@ -73,7 +112,7 @@ func TestHeartbeat_UpdatesPVCs(t *testing.T) {
 	svc := NewService(repo, slog.Default())
 	tools := domain.ToolVersions{Tar: "1.35", Zstd: "1.5.5", Stunnel: "5.72"}
 
-	id, _ := svc.RegisterAgent(context.Background(), "cluster-a", "node-1", tools, nil)
+	id, _ := svc.RegisterAgent(context.Background(), "cluster-a", "node-1", tools, nil, "katapult-ns")
 
 	newPVCs := []domain.PVCInfo{
 		{PVCName: "ns/pvc1", SizeBytes: 2048, StorageClass: "local", NodeAffinity: "node-1"},
@@ -170,7 +209,7 @@ func TestHeartbeat_RecoveryFromUnhealthy(t *testing.T) {
 	svc := NewService(repo, slog.Default())
 	tools := domain.ToolVersions{Tar: "1.35", Zstd: "1.5.5", Stunnel: "5.72"}
 
-	id, err := svc.RegisterAgent(context.Background(), "cluster-a", "node-1", tools, nil)
+	id, err := svc.RegisterAgent(context.Background(), "cluster-a", "node-1", tools, nil, "katapult-ns")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -198,7 +237,7 @@ func TestHeartbeat_DisconnectedAgentRejected(t *testing.T) {
 	svc := NewService(repo, slog.Default())
 	tools := domain.ToolVersions{Tar: "1.35", Zstd: "1.5.5", Stunnel: "5.72"}
 
-	id, err := svc.RegisterAgent(context.Background(), "cluster-a", "node-1", tools, nil)
+	id, err := svc.RegisterAgent(context.Background(), "cluster-a", "node-1", tools, nil, "katapult-ns")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

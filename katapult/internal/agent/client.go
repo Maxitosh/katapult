@@ -7,15 +7,18 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/maxitosh/katapult/internal/domain"
 
 	pb "github.com/maxitosh/katapult/api/proto/agent/v1alpha1"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 // TLSConfig holds the TLS certificate paths for the agent client.
@@ -122,8 +125,9 @@ func (c *Client) SendHeartbeat(ctx context.Context, pvcs []domain.PVCInfo) error
 }
 
 // RunHeartbeatLoop runs the heartbeat loop, periodically sending heartbeats with
-// refreshed PVC inventory. Blocks until the context is cancelled.
-func (c *Client) RunHeartbeatLoop(ctx context.Context, interval time.Duration, discoverer *PVCDiscoverer) {
+// refreshed PVC inventory. If a heartbeat fails with a disconnect/re-register error,
+// regFunc is called to re-register the agent. Blocks until the context is cancelled.
+func (c *Client) RunHeartbeatLoop(ctx context.Context, interval time.Duration, discoverer *PVCDiscoverer, regFunc func() error) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
@@ -134,15 +138,52 @@ func (c *Client) RunHeartbeatLoop(ctx context.Context, interval time.Duration, d
 		case <-ticker.C:
 			pvcs, err := discoverer.Discover(ctx)
 			if err != nil {
-				c.logger.Error("PVC discovery failed during heartbeat", "error", err)
-				continue
+				c.logger.Error("PVC discovery failed during heartbeat, sending heartbeat with empty PVCs", "error", err)
+				pvcs = nil
 			}
 
 			if err := c.SendHeartbeat(ctx, pvcs); err != nil {
 				c.logger.Error("heartbeat failed", "error", err)
+				if isReregistrationNeeded(err) && regFunc != nil {
+					c.logger.Info("disconnect detected, attempting re-registration")
+					if rerr := c.retryReregister(ctx, regFunc, 10, 2*time.Second); rerr != nil {
+						c.logger.Error("re-registration failed after retries", "error", rerr)
+					} else {
+						c.logger.Info("re-registration successful", "agent_id", c.agentID)
+					}
+				}
 			}
 		}
 	}
+}
+
+// retryReregister attempts to re-register using regFunc with exponential backoff.
+func (c *Client) retryReregister(ctx context.Context, regFunc func() error, maxRetries int, baseDelay time.Duration) error {
+	var lastErr error
+	for attempt := range maxRetries {
+		if err := regFunc(); err != nil {
+			lastErr = err
+			c.logger.Warn("re-registration attempt failed", "attempt", attempt+1, "error", err)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(baseDelay * time.Duration(1<<attempt)):
+			}
+			continue
+		}
+		return nil
+	}
+	return fmt.Errorf("re-registration exhausted %d retries: %w", maxRetries, lastErr)
+}
+
+// isReregistrationNeeded checks if the error indicates the agent must re-register.
+func isReregistrationNeeded(err error) bool {
+	if s, ok := status.FromError(err); ok {
+		if s.Code() == codes.FailedPrecondition {
+			return true
+		}
+	}
+	return strings.Contains(err.Error(), "must re-register")
 }
 
 // Close closes the gRPC connection.

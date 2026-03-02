@@ -15,6 +15,12 @@ import (
 	"k8s.io/client-go/rest"
 )
 
+const (
+	jwtTokenPath       = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	registrationRetries = 10
+	retryBaseDelay      = 2 * time.Second
+)
+
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
@@ -74,7 +80,7 @@ func run(logger *slog.Logger) error {
 	logger.Info("discovered PVCs", "count", len(pvcs))
 
 	// Read ServiceAccount JWT token.
-	jwtToken, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/token")
+	jwtToken, err := os.ReadFile(jwtTokenPath)
 	if err != nil {
 		return fmt.Errorf("reading ServiceAccount JWT: %w", err)
 	}
@@ -84,7 +90,7 @@ func run(logger *slog.Logger) error {
 	tlsCACert := config.EnvOrDefault("TLS_CA_CERT", "")
 	if tlsCACert != "" {
 		tlsCfg = &agent.TLSConfig{
-			CACertPath:    tlsCACert,
+			CACertPath:     tlsCACert,
 			ClientCertPath: config.EnvOrDefault("TLS_CERT", ""),
 			ClientKeyPath:  config.EnvOrDefault("TLS_KEY", ""),
 		}
@@ -97,16 +103,58 @@ func run(logger *slog.Logger) error {
 	}
 	defer client.Close()
 
-	// Register with control plane.
-	agentID, err := client.Register(ctx, clusterID, nodeName, string(jwtToken), tools, pvcs)
-	if err != nil {
-		return fmt.Errorf("registration failed: %w", err)
+	// Register with control plane (with retry).
+	var agentID string
+	if err := retryRegistration(ctx, logger, func() error {
+		id, rerr := client.Register(ctx, clusterID, nodeName, string(jwtToken), tools, pvcs)
+		if rerr != nil {
+			return rerr
+		}
+		agentID = id
+		return nil
+	}); err != nil {
+		return fmt.Errorf("registration failed after %d retries: %w", registrationRetries, err)
 	}
 	logger.Info("agent registered", "agent_id", agentID)
 
+	// Build re-registration closure for the heartbeat loop.
+	// Re-reads the JWT token (it may have been rotated) and re-discovers PVCs.
+	regFunc := func() error {
+		token, rerr := os.ReadFile(jwtTokenPath)
+		if rerr != nil {
+			return fmt.Errorf("re-reading JWT token: %w", rerr)
+		}
+		freshPVCs, rerr := discoverer.Discover(ctx)
+		if rerr != nil {
+			logger.Warn("PVC discovery failed during re-registration, using empty PVCs", "error", rerr)
+			freshPVCs = nil
+		}
+		_, rerr = client.Register(ctx, clusterID, nodeName, string(token), tools, freshPVCs)
+		return rerr
+	}
+
 	// Run heartbeat loop until shutdown.
-	client.RunHeartbeatLoop(ctx, heartbeatInterval, discoverer)
+	client.RunHeartbeatLoop(ctx, heartbeatInterval, discoverer, regFunc)
 
 	logger.Info("agent shutting down")
 	return nil
+}
+
+// retryRegistration attempts registration with exponential backoff.
+func retryRegistration(ctx context.Context, logger *slog.Logger, regFunc func() error) error {
+	var lastErr error
+	for attempt := range registrationRetries {
+		if err := regFunc(); err != nil {
+			lastErr = err
+			logger.Warn("registration attempt failed", "attempt", attempt+1, "error", err)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(retryBaseDelay * time.Duration(1<<attempt)):
+			}
+			continue
+		}
+		return nil
+	}
+	return lastErr
 }

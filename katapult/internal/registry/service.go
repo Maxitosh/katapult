@@ -22,8 +22,10 @@ func NewService(repo AgentRepository, logger *slog.Logger) *Service {
 }
 
 // RegisterAgent validates and registers an agent, returning the assigned agent ID.
+// jwtNamespace is the Kubernetes namespace extracted from the agent's JWT token,
+// binding the agent identity to a specific namespace.
 // Implements cpt-katapult-algo-agent-system-validate-registration.
-func (s *Service) RegisterAgent(ctx context.Context, clusterID, nodeName string, tools domain.ToolVersions, pvcs []domain.PVCInfo) (uuid.UUID, error) {
+func (s *Service) RegisterAgent(ctx context.Context, clusterID, nodeName string, tools domain.ToolVersions, pvcs []domain.PVCInfo, jwtNamespace string) (uuid.UUID, error) {
 	if err := ValidateTools(tools); err != nil {
 		return uuid.Nil, fmt.Errorf("registration rejected: %w", err)
 	}
@@ -37,6 +39,9 @@ func (s *Service) RegisterAgent(ctx context.Context, clusterID, nodeName string,
 	var registeredAt time.Time
 
 	if existing != nil {
+		if existing.JWTNamespace != "" && existing.JWTNamespace != jwtNamespace {
+			return uuid.Nil, fmt.Errorf("registration rejected: JWT namespace mismatch (expected %q, got %q)", existing.JWTNamespace, jwtNamespace)
+		}
 		agentID = existing.ID
 		registeredAt = existing.RegisteredAt
 		s.logger.Info("re-registering existing agent", "agent_id", agentID, "cluster", clusterID, "node", nodeName)
@@ -56,6 +61,7 @@ func (s *Service) RegisterAgent(ctx context.Context, clusterID, nodeName string,
 		Tools:         tools,
 		RegisteredAt:  registeredAt,
 		PVCs:          pvcs,
+		JWTNamespace:  jwtNamespace,
 	}
 
 	if err := agent.TransitionTo(domain.AgentStateHealthy); err != nil {
@@ -67,6 +73,11 @@ func (s *Service) RegisterAgent(ctx context.Context, clusterID, nodeName string,
 	}
 
 	return agentID, nil
+}
+
+// GetAgent retrieves an agent by its ID. Returns (nil, nil) when not found.
+func (s *Service) GetAgent(ctx context.Context, agentID uuid.UUID) (*domain.Agent, error) {
+	return s.repo.GetAgentByID(ctx, agentID)
 }
 
 // Heartbeat processes a heartbeat from an agent, updating health and PVC inventory.

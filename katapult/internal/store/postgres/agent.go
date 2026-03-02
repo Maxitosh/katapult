@@ -34,15 +34,16 @@ func (r *AgentRepository) UpsertAgent(ctx context.Context, agent *domain.Agent) 
 	defer tx.Rollback(ctx)
 
 	_, err = tx.Exec(ctx, `
-		INSERT INTO agents (id, cluster_id, node_name, healthy, state, last_heartbeat, tools, registered_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO agents (id, cluster_id, node_name, healthy, state, last_heartbeat, tools, registered_at, jwt_namespace)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		ON CONFLICT (cluster_id, node_name) DO UPDATE SET
 			id = EXCLUDED.id,
 			healthy = EXCLUDED.healthy,
 			state = EXCLUDED.state,
 			last_heartbeat = EXCLUDED.last_heartbeat,
-			tools = EXCLUDED.tools
-	`, agent.ID, agent.ClusterID, agent.NodeName, agent.Healthy, string(agent.State), agent.LastHeartbeat, toolsJSON, agent.RegisteredAt)
+			tools = EXCLUDED.tools,
+			jwt_namespace = EXCLUDED.jwt_namespace
+	`, agent.ID, agent.ClusterID, agent.NodeName, agent.Healthy, string(agent.State), agent.LastHeartbeat, toolsJSON, agent.RegisteredAt, agent.JWTNamespace)
 	if err != nil {
 		return err
 	}
@@ -66,7 +67,7 @@ func (r *AgentRepository) UpsertAgent(ctx context.Context, agent *domain.Agent) 
 }
 
 func (r *AgentRepository) GetAgentByID(ctx context.Context, id uuid.UUID) (*domain.Agent, error) {
-	agent, err := r.scanAgent(ctx, `SELECT id, cluster_id, node_name, healthy, state, last_heartbeat, tools, registered_at FROM agents WHERE id = $1`, id)
+	agent, err := r.scanAgent(ctx, `SELECT id, cluster_id, node_name, healthy, state, last_heartbeat, tools, registered_at, jwt_namespace FROM agents WHERE id = $1`, id)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +82,7 @@ func (r *AgentRepository) GetAgentByID(ctx context.Context, id uuid.UUID) (*doma
 }
 
 func (r *AgentRepository) GetAgentByClusterAndNode(ctx context.Context, clusterID, nodeName string) (*domain.Agent, error) {
-	agent, err := r.scanAgent(ctx, `SELECT id, cluster_id, node_name, healthy, state, last_heartbeat, tools, registered_at FROM agents WHERE cluster_id = $1 AND node_name = $2`, clusterID, nodeName)
+	agent, err := r.scanAgent(ctx, `SELECT id, cluster_id, node_name, healthy, state, last_heartbeat, tools, registered_at, jwt_namespace FROM agents WHERE cluster_id = $1 AND node_name = $2`, clusterID, nodeName)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +148,7 @@ func (r *AgentRepository) scanAgent(ctx context.Context, query string, args ...a
 	var a domain.Agent
 	var toolsJSON []byte
 	var state string
-	err := row.Scan(&a.ID, &a.ClusterID, &a.NodeName, &a.Healthy, &state, &a.LastHeartbeat, &toolsJSON, &a.RegisteredAt)
+	err := row.Scan(&a.ID, &a.ClusterID, &a.NodeName, &a.Healthy, &state, &a.LastHeartbeat, &toolsJSON, &a.RegisteredAt, &a.JWTNamespace)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, nil
