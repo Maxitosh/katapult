@@ -12,6 +12,7 @@ artifacts = [
   { path = "docs/ADR/0002-multi-strategy-transfers.md", kind = "ADR" },
   { path = "docs/ADR/0003-use-go.md", kind = "ADR" },
   { path = "docs/ADR/0004-grpc-agent-communication.md", kind = "ADR" },
+  { path = "docs/feature-agent-system/FEATURE.md", kind = "FEATURE" },
 ]
 codebase = []
 children = []
