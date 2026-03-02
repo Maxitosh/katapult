@@ -7,8 +7,9 @@
 - [1. Feature Context](#1-feature-context)
   - [1.1 Overview](#11-overview)
   - [1.2 Purpose](#12-purpose)
-  - [1.3 Actors](#13-actors)
-  - [1.4 References](#14-references)
+  - [1.3 Configuration Parameters](#13-configuration-parameters)
+  - [1.4 Actors](#14-actors)
+  - [1.5 References](#15-references)
 - [2. Actor Flows (CDSL)](#2-actor-flows-cdsl)
   - [Agent Registration](#agent-registration)
   - [Agent Heartbeat](#agent-heartbeat)
@@ -58,14 +59,29 @@ Design principles applied:
 - `cpt-katapult-principle-agent-autonomy` — agents operate independently once registered
 - `cpt-katapult-principle-outbound-only` — agents initiate all connections; control plane never connects into clusters
 
-### 1.3 Actors
+Design constraints satisfied:
+- `cpt-katapult-constraint-k8s-only` — agents run exclusively as Kubernetes DaemonSets
+- `cpt-katapult-constraint-agent-tools` — agents verify required tool dependencies (GNU tar >= 1.28, zstd, stunnel) at startup
+
+### 1.3 Configuration Parameters
+
+| Parameter | Default | Description | Referenced In |
+|-----------|---------|-------------|---------------|
+| Heartbeat interval | 30s | Time between agent heartbeat messages | `cpt-katapult-flow-agent-system-heartbeat` |
+| Heartbeat timeout (unhealthy) | 90s | Time after last heartbeat before agent is marked unhealthy | `cpt-katapult-algo-agent-system-evaluate-health`, `cpt-katapult-state-agent-system-agent-lifecycle` |
+| Extended timeout (disconnected) | 5 min | Time after unhealthy before agent is marked disconnected | `cpt-katapult-state-agent-system-agent-lifecycle` |
+| PVC namespace allowlist | (none) | Namespaces from which PVCs are discovered | `cpt-katapult-algo-agent-system-discover-pvcs` |
+| PVC label selectors | (none) | Label filters applied during PVC discovery | `cpt-katapult-algo-agent-system-discover-pvcs` |
+| K8s API retry max attempts | 3 | Maximum retries with exponential backoff for Kubernetes API calls | `cpt-katapult-algo-agent-system-discover-pvcs` |
+
+### 1.4 Actors
 
 | Actor | Role in Feature |
 |-------|-----------------|
 | `cpt-katapult-actor-agent` | Initiates registration, sends heartbeats, discovers and reports PVCs |
 | `cpt-katapult-actor-infra-engineer` | Configures PVC boundary filters (namespace/label), monitors agent status via API |
 
-### 1.4 References
+### 1.5 References
 
 - **PRD**: [PRD.md](../PRD.md)
 - **Design**: [DESIGN.md](../DESIGN.md)
@@ -94,13 +110,12 @@ Design principles applied:
 3. [ ] - `p1` - **IF** any required tool is missing or below minimum version **RETURN** error and abort startup - `inst-check-tools-fail`
 4. [ ] - `p1` - Agent reads Kubernetes ServiceAccount JWT token from mounted volume - `inst-read-jwt`
 5. [ ] - `p1` - Agent discovers local PVCs using algorithm `cpt-katapult-algo-agent-system-discover-pvcs` - `inst-initial-discover`
-6. [ ] - `p1` - Agent initiates outbound gRPC connection to control plane - `inst-grpc-connect`
+6. [ ] - `p1` - Agent initiates outbound gRPC connection to control plane over mTLS (transport-level authentication and encryption) - `inst-grpc-connect`
 7. [ ] - `p1` - API: gRPC AgentService.Register (cluster ID, node name, tool versions, PVC inventory, JWT token) - `inst-grpc-register`
 8. [ ] - `p1` - Control plane validates agent identity using algorithm `cpt-katapult-algo-agent-system-validate-registration` - `inst-validate-reg`
 9. [ ] - `p1` - **IF** validation fails **RETURN** error with rejection reason - `inst-reject-reg`
-10. [ ] - `p1` - DB: UPSERT agents(cluster_id, node_name, healthy=true, tools, last_heartbeat=now) - `inst-db-upsert-agent`
-11. [ ] - `p1` - DB: DELETE agent_pvcs WHERE agent_id=? THEN INSERT agent_pvcs for each discovered PVC - `inst-db-replace-pvcs`
-12. [ ] - `p1` - **RETURN** Registered (agent_id) - `inst-return-registered`
+10. [ ] - `p1` - DB: Within a single transaction: UPSERT agents(cluster_id, node_name, healthy=true, tools, last_heartbeat=now), DELETE agent_pvcs WHERE agent_id=?, INSERT agent_pvcs for each discovered PVC - `inst-db-persist-registration`
+11. [ ] - `p1` - **RETURN** Registered (agent_id) - `inst-return-registered`
 
 ### Agent Heartbeat
 
@@ -114,14 +129,17 @@ Design principles applied:
 **Error Scenarios**:
 - Heartbeat not received within configurable timeout and agent marked unhealthy
 - Agent reconnects after temporary network partition and health restores
+- Heartbeat received on unauthenticated connection and control plane rejects with error
 
 **Steps**:
 1. [ ] - `p1` - Agent waits for heartbeat interval (configurable, default 30s) - `inst-wait-interval`
 2. [ ] - `p1` - Agent re-discovers local PVCs using algorithm `cpt-katapult-algo-agent-system-discover-pvcs` - `inst-heartbeat-discover`
-3. [ ] - `p1` - API: gRPC AgentService.Heartbeat (agent_id, health status, updated PVC inventory) - `inst-grpc-heartbeat`
-4. [ ] - `p1` - DB: UPDATE agents SET healthy=true, last_heartbeat=now WHERE id=? - `inst-db-update-heartbeat`
-5. [ ] - `p1` - DB: DELETE agent_pvcs WHERE agent_id=? THEN INSERT agent_pvcs for each discovered PVC - `inst-db-replace-pvcs-heartbeat`
-6. [ ] - `p1` - **RETURN** Acknowledged - `inst-return-ack`
+3. [ ] - `p1` - Agent sends heartbeat over the authenticated gRPC connection established during registration (mTLS channel with agent identity) - `inst-grpc-heartbeat`
+4. [ ] - `p1` - Control plane verifies the heartbeat originates from an authenticated connection and the agent_id matches the connection identity - `inst-verify-heartbeat-auth`
+5. [ ] - `p1` - **IF** authentication fails or agent_id does not match connection identity **RETURN** error "Unauthenticated heartbeat" - `inst-reject-heartbeat`
+6. [ ] - `p1` - DB: UPDATE agents SET healthy=true, last_heartbeat=now WHERE id=? - `inst-db-update-heartbeat`
+7. [ ] - `p1` - DB: Within a single transaction: DELETE agent_pvcs WHERE agent_id=? THEN INSERT agent_pvcs for each discovered PVC - `inst-db-replace-pvcs-heartbeat`
+8. [ ] - `p1` - **RETURN** Acknowledged - `inst-return-ack`
 
 ### PVC Discovery
 
@@ -225,6 +243,11 @@ Design principles applied:
 6. [ ] - `p1` - **FROM** Disconnected **TO** Registering **WHEN** agent reconnects and initiates re-registration - `inst-disconnected-to-registering`
 7. [ ] - `p1` - **FROM** Healthy **TO** Registering **WHEN** agent reconnects after control plane restart - `inst-healthy-to-registering`
 
+**Invariants**: All transitions not listed above are invalid. In particular:
+- Disconnected → Healthy is prohibited (agent must re-register first)
+- Healthy → Disconnected is prohibited (agent must pass through Unhealthy via heartbeat timeout)
+- Registering → Unhealthy is prohibited (agent has no heartbeat tracking until registered)
+
 ## 5. Definitions of Done
 
 ### Agent Registration
@@ -243,6 +266,7 @@ The system **MUST** accept agent registrations via gRPC AgentService.Register, v
 **Covers (DESIGN)**:
 - `cpt-katapult-principle-outbound-only`
 - `cpt-katapult-constraint-k8s-only`
+- `cpt-katapult-constraint-agent-tools`
 - `cpt-katapult-component-agent-registry`
 - `cpt-katapult-component-agent-runtime`
 - `cpt-katapult-seq-agent-registration`
@@ -313,6 +337,7 @@ The system **MUST** authenticate agents using Kubernetes ServiceAccount JWT toke
 **Covers (DESIGN)**:
 - `cpt-katapult-principle-outbound-only`
 - `cpt-katapult-constraint-k8s-only`
+- `cpt-katapult-constraint-agent-tools`
 - `cpt-katapult-component-agent-registry`
 
 **Touches**:
