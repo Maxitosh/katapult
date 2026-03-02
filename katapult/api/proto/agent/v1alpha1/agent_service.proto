@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package katapult.agent.v1alpha1;
+
+option go_package = "github.com/maxitosh/katapult/api/proto/agent/v1alpha1;agentv1alpha1";
+
+service AgentService {
+  // Register registers an agent with the control plane.
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+
+  // Heartbeat sends a periodic health check with updated PVC inventory.
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+}
+
+message ToolVersions {
+  string tar_version = 1;
+  string zstd_version = 2;
+  string stunnel_version = 3;
+}
+
+message PVCInfo {
+  string pvc_name = 1;
+  int64 size_bytes = 2;
+  string storage_class = 3;
+  string node_affinity = 4;
+}
+
+message RegisterRequest {
+  string cluster_id = 1;
+  string node_name = 2;
+  ToolVersions tools = 3;
+  repeated PVCInfo pvcs = 4;
+  string jwt_token = 5;
+}
+
+message RegisterResponse {
+  string agent_id = 1;
+}
+
+message HeartbeatRequest {
+  string agent_id = 1;
+  repeated PVCInfo pvcs = 2;
+}
+
+message HeartbeatResponse {}
