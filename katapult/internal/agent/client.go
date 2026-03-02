@@ -2,17 +2,28 @@ package agent
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/maxitosh/katapult/internal/domain"
 
 	pb "github.com/maxitosh/katapult/api/proto/agent/v1alpha1"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 )
+
+// TLSConfig holds the TLS certificate paths for the agent client.
+type TLSConfig struct {
+	CACertPath    string
+	ClientCertPath string
+	ClientKeyPath  string
+}
 
 // Client manages communication with the control plane.
 type Client struct {
@@ -23,9 +34,40 @@ type Client struct {
 }
 
 // NewClient creates a new gRPC client to the control plane.
-func NewClient(address string, logger *slog.Logger) (*Client, error) {
-	// In production, this would use mTLS credentials. Using insecure for initial scaffolding.
-	conn, err := grpc.NewClient(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+// If tlsCfg is non-nil and CACertPath is set, TLS is used; otherwise insecure credentials are used.
+func NewClient(address string, tlsCfg *TLSConfig, logger *slog.Logger) (*Client, error) {
+	var dialOpt grpc.DialOption
+
+	if tlsCfg != nil && tlsCfg.CACertPath != "" {
+		caCert, err := os.ReadFile(tlsCfg.CACertPath)
+		if err != nil {
+			return nil, fmt.Errorf("reading CA cert: %w", err)
+		}
+		certPool := x509.NewCertPool()
+		if !certPool.AppendCertsFromPEM(caCert) {
+			return nil, fmt.Errorf("failed to add CA cert to pool")
+		}
+
+		tlsConf := &tls.Config{
+			RootCAs: certPool,
+		}
+
+		if tlsCfg.ClientCertPath != "" && tlsCfg.ClientKeyPath != "" {
+			clientCert, err := tls.LoadX509KeyPair(tlsCfg.ClientCertPath, tlsCfg.ClientKeyPath)
+			if err != nil {
+				return nil, fmt.Errorf("loading client cert/key: %w", err)
+			}
+			tlsConf.Certificates = []tls.Certificate{clientCert}
+		}
+
+		dialOpt = grpc.WithTransportCredentials(credentials.NewTLS(tlsConf))
+		logger.Info("using TLS for control plane connection")
+	} else {
+		dialOpt = grpc.WithTransportCredentials(insecure.NewCredentials())
+		logger.Warn("using insecure connection to control plane")
+	}
+
+	conn, err := grpc.NewClient(address, dialOpt)
 	if err != nil {
 		return nil, fmt.Errorf("connecting to control plane: %w", err)
 	}

@@ -34,14 +34,15 @@ func (r *AgentRepository) UpsertAgent(ctx context.Context, agent *domain.Agent) 
 	defer tx.Rollback(ctx)
 
 	_, err = tx.Exec(ctx, `
-		INSERT INTO agents (id, cluster_id, node_name, healthy, last_heartbeat, tools, registered_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO agents (id, cluster_id, node_name, healthy, state, last_heartbeat, tools, registered_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		ON CONFLICT (cluster_id, node_name) DO UPDATE SET
 			id = EXCLUDED.id,
 			healthy = EXCLUDED.healthy,
+			state = EXCLUDED.state,
 			last_heartbeat = EXCLUDED.last_heartbeat,
 			tools = EXCLUDED.tools
-	`, agent.ID, agent.ClusterID, agent.NodeName, agent.Healthy, agent.LastHeartbeat, toolsJSON, agent.RegisteredAt)
+	`, agent.ID, agent.ClusterID, agent.NodeName, agent.Healthy, string(agent.State), agent.LastHeartbeat, toolsJSON, agent.RegisteredAt)
 	if err != nil {
 		return err
 	}
@@ -65,7 +66,7 @@ func (r *AgentRepository) UpsertAgent(ctx context.Context, agent *domain.Agent) 
 }
 
 func (r *AgentRepository) GetAgentByID(ctx context.Context, id uuid.UUID) (*domain.Agent, error) {
-	agent, err := r.scanAgent(ctx, `SELECT id, cluster_id, node_name, healthy, last_heartbeat, tools, registered_at FROM agents WHERE id = $1`, id)
+	agent, err := r.scanAgent(ctx, `SELECT id, cluster_id, node_name, healthy, state, last_heartbeat, tools, registered_at FROM agents WHERE id = $1`, id)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +81,7 @@ func (r *AgentRepository) GetAgentByID(ctx context.Context, id uuid.UUID) (*doma
 }
 
 func (r *AgentRepository) GetAgentByClusterAndNode(ctx context.Context, clusterID, nodeName string) (*domain.Agent, error) {
-	agent, err := r.scanAgent(ctx, `SELECT id, cluster_id, node_name, healthy, last_heartbeat, tools, registered_at FROM agents WHERE cluster_id = $1 AND node_name = $2`, clusterID, nodeName)
+	agent, err := r.scanAgent(ctx, `SELECT id, cluster_id, node_name, healthy, state, last_heartbeat, tools, registered_at FROM agents WHERE cluster_id = $1 AND node_name = $2`, clusterID, nodeName)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +102,7 @@ func (r *AgentRepository) UpdateHeartbeat(ctx context.Context, agentID uuid.UUID
 	}
 	defer tx.Rollback(ctx)
 
-	_, err = tx.Exec(ctx, `UPDATE agents SET healthy = TRUE, last_heartbeat = NOW() WHERE id = $1`, agentID)
+	_, err = tx.Exec(ctx, `UPDATE agents SET healthy = TRUE, state = 'healthy', last_heartbeat = NOW() WHERE id = $1`, agentID)
 	if err != nil {
 		return err
 	}
@@ -125,7 +126,7 @@ func (r *AgentRepository) UpdateHeartbeat(ctx context.Context, agentID uuid.UUID
 }
 
 func (r *AgentRepository) MarkUnhealthy(ctx context.Context, cutoff time.Time) (int, error) {
-	tag, err := r.pool.Exec(ctx, `UPDATE agents SET healthy = FALSE WHERE healthy = TRUE AND last_heartbeat < $1`, cutoff)
+	tag, err := r.pool.Exec(ctx, `UPDATE agents SET healthy = FALSE, state = 'unhealthy' WHERE state = 'healthy' AND last_heartbeat < $1`, cutoff)
 	if err != nil {
 		return 0, err
 	}
@@ -133,13 +134,11 @@ func (r *AgentRepository) MarkUnhealthy(ctx context.Context, cutoff time.Time) (
 }
 
 func (r *AgentRepository) MarkDisconnected(ctx context.Context, cutoff time.Time) (int, error) {
-	// Disconnected agents are tracked by setting healthy=false with a sufficiently old heartbeat.
-	// In a production system this would update a state column; for now the health evaluator
-	// uses the cutoff times to distinguish unhealthy from disconnected.
-	// This is a no-op placeholder since the agents table doesn't yet have a state column.
-	// The health evaluator in the registry service handles the distinction via time windows.
-	_ = cutoff
-	return 0, nil
+	tag, err := r.pool.Exec(ctx, `UPDATE agents SET state = 'disconnected' WHERE state = 'unhealthy' AND last_heartbeat < $1`, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return int(tag.RowsAffected()), nil
 }
 
 func (r *AgentRepository) scanAgent(ctx context.Context, query string, args ...any) (*domain.Agent, error) {
@@ -147,7 +146,8 @@ func (r *AgentRepository) scanAgent(ctx context.Context, query string, args ...a
 
 	var a domain.Agent
 	var toolsJSON []byte
-	err := row.Scan(&a.ID, &a.ClusterID, &a.NodeName, &a.Healthy, &a.LastHeartbeat, &toolsJSON, &a.RegisteredAt)
+	var state string
+	err := row.Scan(&a.ID, &a.ClusterID, &a.NodeName, &a.Healthy, &state, &a.LastHeartbeat, &toolsJSON, &a.RegisteredAt)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, nil
@@ -159,11 +159,7 @@ func (r *AgentRepository) scanAgent(ctx context.Context, query string, args ...a
 		return nil, err
 	}
 
-	if a.Healthy {
-		a.State = domain.AgentStateHealthy
-	} else {
-		a.State = domain.AgentStateUnhealthy
-	}
+	a.State = domain.AgentState(state)
 
 	return &a, nil
 }

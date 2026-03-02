@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/maxitosh/katapult/internal/agent"
+	"github.com/maxitosh/katapult/internal/config"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
@@ -27,10 +28,10 @@ func run(logger *slog.Logger) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	controlPlaneAddr := envOrDefault("CONTROL_PLANE_ADDR", "localhost:50051")
-	clusterID := envOrDefault("CLUSTER_ID", "")
-	nodeName := envOrDefault("NODE_NAME", "")
-	heartbeatIntervalStr := envOrDefault("HEARTBEAT_INTERVAL", "30s")
+	controlPlaneAddr := config.EnvOrDefault("CONTROL_PLANE_ADDR", "localhost:50051")
+	clusterID := config.EnvOrDefault("CLUSTER_ID", "")
+	nodeName := config.EnvOrDefault("NODE_NAME", "")
+	heartbeatIntervalStr := config.EnvOrDefault("HEARTBEAT_INTERVAL", "30s")
 
 	if clusterID == "" {
 		return fmt.Errorf("CLUSTER_ID environment variable is required")
@@ -78,8 +79,19 @@ func run(logger *slog.Logger) error {
 		return fmt.Errorf("reading ServiceAccount JWT: %w", err)
 	}
 
+	// Build TLS config if CA cert is provided.
+	var tlsCfg *agent.TLSConfig
+	tlsCACert := config.EnvOrDefault("TLS_CA_CERT", "")
+	if tlsCACert != "" {
+		tlsCfg = &agent.TLSConfig{
+			CACertPath:    tlsCACert,
+			ClientCertPath: config.EnvOrDefault("TLS_CERT", ""),
+			ClientKeyPath:  config.EnvOrDefault("TLS_KEY", ""),
+		}
+	}
+
 	// Connect to control plane.
-	client, err := agent.NewClient(controlPlaneAddr, logger)
+	client, err := agent.NewClient(controlPlaneAddr, tlsCfg, logger)
 	if err != nil {
 		return fmt.Errorf("connecting to control plane: %w", err)
 	}
@@ -97,11 +109,4 @@ func run(logger *slog.Logger) error {
 
 	logger.Info("agent shutting down")
 	return nil
-}
-
-func envOrDefault(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
 }

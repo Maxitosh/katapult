@@ -50,12 +50,16 @@ func (s *Service) RegisterAgent(ctx context.Context, clusterID, nodeName string,
 		ID:            agentID,
 		ClusterID:     clusterID,
 		NodeName:      nodeName,
-		State:         domain.AgentStateHealthy,
-		Healthy:       true,
+		State:         domain.AgentStateRegistering,
+		Healthy:       false,
 		LastHeartbeat: time.Now(),
 		Tools:         tools,
 		RegisteredAt:  registeredAt,
 		PVCs:          pvcs,
+	}
+
+	if err := agent.TransitionTo(domain.AgentStateHealthy); err != nil {
+		return uuid.Nil, fmt.Errorf("state transition failed: %w", err)
 	}
 
 	if err := s.repo.UpsertAgent(ctx, agent); err != nil {
@@ -74,6 +78,17 @@ func (s *Service) Heartbeat(ctx context.Context, agentID uuid.UUID, pvcs []domai
 	}
 	if agent == nil {
 		return fmt.Errorf("agent %s not found", agentID)
+	}
+
+	if agent.State == domain.AgentStateDisconnected {
+		return fmt.Errorf("agent %s is disconnected: must re-register", agentID)
+	}
+
+	if agent.State == domain.AgentStateUnhealthy {
+		if err := agent.TransitionTo(domain.AgentStateHealthy); err != nil {
+			return fmt.Errorf("recovery transition failed: %w", err)
+		}
+		s.logger.Info("agent recovered from unhealthy", "agent_id", agentID)
 	}
 
 	if err := s.repo.UpdateHeartbeat(ctx, agentID, pvcs); err != nil {

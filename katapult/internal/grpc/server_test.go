@@ -2,20 +2,10 @@ package grpc
 
 import (
 	"context"
-	"log/slog"
 	"testing"
-
-	"github.com/maxitosh/katapult/internal/registry"
 
 	pb "github.com/maxitosh/katapult/api/proto/agent/v1alpha1"
 )
-
-func setupTestServer(t *testing.T) *AgentServer {
-	t.Helper()
-	repo := newMemRepo()
-	svc := registry.NewService(repo, slog.Default())
-	return NewAgentServer(svc)
-}
 
 func TestRegister_Success(t *testing.T) {
 	srv := setupTestServer(t)

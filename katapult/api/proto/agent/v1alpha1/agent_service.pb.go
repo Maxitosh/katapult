@@ -388,7 +388,7 @@ const file_api_proto_agent_v1alpha1_agent_service_proto_rawDesc = "" +
 	"\x11HeartbeatResponse2\xd3\x01\n" +
 	"\fAgentService\x12_\n" +
 	"\bRegister\x12(.katapult.agent.v1alpha1.RegisterRequest\x1a).katapult.agent.v1alpha1.RegisterResponse\x12b\n" +
-	"\tHeartbeat\x12).katapult.agent.v1alpha1.HeartbeatRequest\x1a*.katapult.agent.v1alpha1.HeartbeatResponseBGZEgithub.com/maxitosh/katapult/api/proto/agent/v1alpha1;agentv1alpha1b\x06proto3"
+	"\tHeartbeat\x12).katapult.agent.v1alpha1.HeartbeatRequest\x1a*.katapult.agent.v1alpha1.HeartbeatResponseBEZCgithub.com/maxitosh/katapult/api/proto/agent/v1alpha1;agentv1alpha1b\x06proto3"
 
 var (
 	file_api_proto_agent_v1alpha1_agent_service_proto_rawDescOnce sync.Once
