@@ -14,5 +14,7 @@ artifacts = [
   { path = "docs/ADR/0004-grpc-agent-communication.md", kind = "ADR" },
   { path = "docs/feature-agent-system/FEATURE.md", kind = "FEATURE" },
 ]
-codebase = []
+codebase = [
+  { path = "katapult/", feature = "docs/feature-agent-system/FEATURE.md" },
+]
 children = []
