@@ -36,6 +36,9 @@ type Agent struct {
 	Tools         ToolVersions `json:"tools"`
 	RegisteredAt  time.Time    `json:"registered_at"`
 	PVCs          []PVCInfo    `json:"pvcs,omitempty"`
+	// JWTNamespace stores the Kubernetes namespace from the JWT at registration
+	// time, creating an immutable binding between agent_id and JWT identity.
+	JWTNamespace string `json:"jwt_namespace"`
 }
 
 // PVCInfo represents a discovered PVC with its resolved PV metadata.
