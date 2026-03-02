@@ -7,6 +7,10 @@ kit = "cypilot-sdlc"
 artifacts = [
   { path = "docs/PRD.md", kind = "PRD" },
   { path = "docs/DESIGN.md", kind = "DESIGN" },
+  { path = "docs/ADR/0001-hub-and-spoke-architecture.md", kind = "ADR" },
+  { path = "docs/ADR/0002-multi-strategy-transfers.md", kind = "ADR" },
+  { path = "docs/ADR/0003-use-go.md", kind = "ADR" },
+  { path = "docs/ADR/0004-grpc-agent-communication.md", kind = "ADR" },
 ]
 codebase = []
 children = []

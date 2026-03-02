@@ -92,6 +92,13 @@ The architecture follows three core tenets: agents are autonomous executors (tra
 
 ### 1.2 Architecture Drivers
 
+**Architecture Decisions**:
+
+- `cpt-katapult-adr-hub-and-spoke` — Hub-and-spoke architecture with centralized control plane and distributed per-node agents; outbound-only agent connectivity
+- `cpt-katapult-adr-multi-strategy-transfers` — Multiple transfer strategies (streaming, S3-staged, direct) with automatic topology-based selection
+- `cpt-katapult-adr-use-go` — Go as the implementation language for control plane, agents, and CLI
+- `cpt-katapult-adr-grpc-agent-communication` — gRPC bidirectional streaming for agent-to-control-plane communication
+
 #### Functional Drivers
 
 | Requirement | Design Response |
@@ -265,6 +272,8 @@ Cross-cluster transfers with resume capability require an S3-compatible object s
 ### 3.1 Domain Model
 
 **Technology**: Go structs
+
+**Location**: To be defined during implementation (GREENFIELD — no code exists yet)
 
 **Core Entities**:
 
@@ -916,6 +925,21 @@ The system handles volumes ranging from 200 GiB to 15 TB across 10 globally dist
 - **User-Facing Architecture (UX-DESIGN-001)**: Not applicable as a detailed section — Web UI is a standard React SPA consuming the REST API. No offline support, no progressive enhancement, no responsive design requirements. The UI is accessed from operator workstations only. See PRD Section 6.2.
 - **Capacity and Cost Budgets (ARCH-DESIGN-010)**: Not applicable for v1 — single control plane replica, 10 clusters, DaemonSet agents. Capacity is bounded by current infrastructure. Cost optimization deferred to post-v1 when HA and multi-tenancy are considered.
 
+**Addressed in dedicated sections**:
+
+- **Security Architecture (SEC)**: Addressed via Design Principles (Section 2.1: `cpt-katapult-principle-encryption-default`, `cpt-katapult-principle-ephemeral-credentials`), Functional Drivers (Section 1.2: `cpt-katapult-fr-encryption-default`, `cpt-katapult-fr-ephemeral-credentials`, `cpt-katapult-fr-agent-auth`, `cpt-katapult-fr-user-auth`, `cpt-katapult-fr-user-authz`), Credential Manager component (Section 3.2), and API Server authentication/RBAC responsibilities (Section 3.2). Trust boundaries are defined by the outbound-only connectivity principle and the Kubernetes ServiceAccount JWT-based agent authentication.
+- **Reliability (REL)**: Addressed via NFR Allocation (Section 1.2: `cpt-katapult-nfr-bounded-failure`, `cpt-katapult-nfr-cp-availability`, `cpt-katapult-nfr-cp-recovery`), Agent Autonomy principle (Section 2.1), and Transfer Orchestrator retry/backoff responsibilities (Section 3.2). Data consistency is eventual — agents report progress asynchronously, and the control plane persists state to PostgreSQL. Idempotency is addressed by chunk-level checkpointing in the S3 mover and pipeline-level restart in the streaming mover.
+- **Data Architecture (DATA)**: Addressed via Database Schemas section (Section 3.7) with four tables, primary keys, constraints, and indexes. Data partitioning, sharding, and archival are not applicable for v1 — single PostgreSQL instance handles all state for 10 clusters. Data integrity is enforced via PostgreSQL constraints and foreign keys.
+- **Integration Architecture (INT)**: Addressed via External Dependencies (Section 3.5: S3, Kubernetes API, PostgreSQL, Prometheus) and API Contracts (Section 3.3: REST, gRPC, CRD). Integration patterns are synchronous (REST/gRPC) and event-driven (gRPC streaming for progress). API versioning uses `v1alpha1` stability marker.
+- **Business Alignment (BIZ)**: Addressed via Functional Drivers table (Section 1.2) which maps all 29 PRD functional requirements to design responses, and NFR Allocation table which maps all 7 NFRs to components with verification approaches.
+
+**Not applicable sections (continued)**:
+
+- **Operations Architecture (OPS)**: Not applicable as a standalone section for v1 — deployment topology is a single Kubernetes Deployment (control plane) and DaemonSet (agents) with no multi-environment promotion or IaC complexity. Observability is addressed via Prometheus metrics and structured JSON logging (see `cpt-katapult-fr-metrics-logging` in Section 1.2 and Prometheus external dependency in Section 3.5). Deployment details will be specified in the Helm chart and deployment guide, not in the architecture design.
+- **Maintainability (MAINT)**: Not applicable as a standalone section — code organization follows standard Go project layout with domain-driven boundaries matching the component model (Section 3.2). Dependency injection via Go interfaces documented in Internal Dependencies (Section 3.4). Technical debt management deferred to post-v1.
+- **Testing Architecture (TEST)**: Not applicable as a standalone section for v1 — testing strategy will be defined in the DECOMPOSITION and individual FEATURE specs. Testability is inherent in the component model: domain components communicate via Go interfaces (Section 3.4), enabling unit testing with mock implementations. Integration and E2E test approaches will be specified per feature.
+
 ## 5. Traceability
 
 - **PRD**: [PRD.md](./PRD.md)
+- **ADRs**: [ADR/](./ADR/)
