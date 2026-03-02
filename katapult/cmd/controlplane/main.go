@@ -10,13 +10,14 @@ import (
 	"syscall"
 	"time"
 
+	pb "github.com/maxitosh/katapult/api/proto/agent/v1alpha1"
+	"github.com/maxitosh/katapult/internal/config"
+	agentgrpc "github.com/maxitosh/katapult/internal/grpc"
 	"github.com/maxitosh/katapult/internal/registry"
 	"github.com/maxitosh/katapult/internal/store/postgres"
 	"github.com/jackc/pgx/v5/pgxpool"
-
-	agentgrpc "github.com/maxitosh/katapult/internal/grpc"
-	pb "github.com/maxitosh/katapult/api/proto/agent/v1alpha1"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 func main() {
@@ -32,11 +33,11 @@ func run(logger *slog.Logger) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	databaseURL := envOrDefault("DATABASE_URL", "postgres://localhost:5432/katapult?sslmode=disable")
-	listenAddr := envOrDefault("GRPC_LISTEN_ADDR", ":50051")
-	unhealthyTimeoutStr := envOrDefault("UNHEALTHY_TIMEOUT", "90s")
-	disconnectedTimeoutStr := envOrDefault("DISCONNECTED_TIMEOUT", "5m")
-	healthCheckIntervalStr := envOrDefault("HEALTH_CHECK_INTERVAL", "30s")
+	databaseURL := config.EnvOrDefault("DATABASE_URL", "postgres://localhost:5432/katapult?sslmode=disable")
+	listenAddr := config.EnvOrDefault("GRPC_LISTEN_ADDR", ":50051")
+	unhealthyTimeoutStr := config.EnvOrDefault("UNHEALTHY_TIMEOUT", "90s")
+	disconnectedTimeoutStr := config.EnvOrDefault("DISCONNECTED_TIMEOUT", "5m")
+	healthCheckIntervalStr := config.EnvOrDefault("HEALTH_CHECK_INTERVAL", "30s")
 
 	unhealthyTimeout, err := time.ParseDuration(unhealthyTimeoutStr)
 	if err != nil {
@@ -68,8 +69,43 @@ func run(logger *slog.Logger) error {
 	healthEval := registry.NewHealthEvaluator(repo, unhealthyTimeout, disconnectedTimeout, logger)
 	go healthEval.RunLoop(ctx, healthCheckInterval)
 
+	var serverOpts []grpc.ServerOption
+
+	// JWT authentication.
+	jwtPublicKeyPath := config.EnvOrDefault("JWT_PUBLIC_KEY_PATH", "")
+	expectedAgentSA := config.EnvOrDefault("EXPECTED_AGENT_SA", "")
+	if jwtPublicKeyPath != "" {
+		keyData, err := os.ReadFile(jwtPublicKeyPath)
+		if err != nil {
+			return fmt.Errorf("reading JWT public key: %w", err)
+		}
+		keyFunc, err := agentgrpc.StaticKeyFunc(keyData)
+		if err != nil {
+			return fmt.Errorf("creating JWT key func: %w", err)
+		}
+		validator := agentgrpc.NewJWTValidator(expectedAgentSA, keyFunc)
+		serverOpts = append(serverOpts, grpc.UnaryInterceptor(agentgrpc.UnaryAuthInterceptor(validator)))
+		logger.Info("JWT authentication enabled", "expected_sa", expectedAgentSA)
+	} else {
+		logger.Warn("JWT_PUBLIC_KEY_PATH not set, running without JWT authentication")
+	}
+
+	// TLS credentials.
+	tlsCert := config.EnvOrDefault("TLS_CERT", "")
+	tlsKey := config.EnvOrDefault("TLS_KEY", "")
+	if tlsCert != "" && tlsKey != "" {
+		creds, err := credentials.NewServerTLSFromFile(tlsCert, tlsKey)
+		if err != nil {
+			return fmt.Errorf("loading TLS credentials: %w", err)
+		}
+		serverOpts = append(serverOpts, grpc.Creds(creds))
+		logger.Info("TLS enabled")
+	} else {
+		logger.Warn("TLS_CERT/TLS_KEY not set, running without TLS")
+	}
+
 	agentServer := agentgrpc.NewAgentServer(svc)
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(serverOpts...)
 	pb.RegisterAgentServiceServer(grpcServer, agentServer)
 
 	lis, err := net.Listen("tcp", listenAddr)
@@ -89,11 +125,4 @@ func run(logger *slog.Logger) error {
 	}
 
 	return nil
-}
-
-func envOrDefault(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
 }
