@@ -91,7 +91,7 @@ Design constraints satisfied:
 
 ### Agent Registration
 
-- [ ] `p1` - **ID**: `cpt-katapult-flow-agent-system-register`
+- [x] `p1` - **ID**: `cpt-katapult-flow-agent-system-register`
 
 **Actor**: `cpt-katapult-actor-agent`
 
@@ -105,21 +105,21 @@ Design constraints satisfied:
 - Control plane is unreachable and agent retries with backoff
 
 **Steps**:
-1. [ ] - `p1` - Agent pod starts via DaemonSet on Kubernetes worker node - `inst-agent-start`
-2. [ ] - `p1` - Agent verifies required tools are available (GNU tar >= 1.28, zstd, stunnel) - `inst-verify-tools`
-3. [ ] - `p1` - **IF** any required tool is missing or below minimum version **RETURN** error and abort startup - `inst-check-tools-fail`
-4. [ ] - `p1` - Agent reads Kubernetes ServiceAccount JWT token from mounted volume - `inst-read-jwt`
-5. [ ] - `p1` - Agent discovers local PVCs using algorithm `cpt-katapult-algo-agent-system-discover-pvcs` - `inst-initial-discover`
-6. [ ] - `p1` - Agent initiates outbound gRPC connection to control plane over mTLS (transport-level authentication and encryption) - `inst-grpc-connect`
-7. [ ] - `p1` - API: gRPC AgentService.Register (cluster ID, node name, tool versions, PVC inventory, JWT token) - `inst-grpc-register`
-8. [ ] - `p1` - Control plane validates agent identity using algorithm `cpt-katapult-algo-agent-system-validate-registration` - `inst-validate-reg`
-9. [ ] - `p1` - **IF** validation fails **RETURN** error with rejection reason - `inst-reject-reg`
-10. [ ] - `p1` - DB: Within a single transaction: UPSERT agents(cluster_id, node_name, healthy=true, tools, last_heartbeat=now), DELETE agent_pvcs WHERE agent_id=?, INSERT agent_pvcs for each discovered PVC - `inst-db-persist-registration`
-11. [ ] - `p1` - **RETURN** Registered (agent_id) - `inst-return-registered`
+1. [x] - `p1` - Agent pod starts via DaemonSet on Kubernetes worker node - `inst-agent-start`
+2. [x] - `p1` - Agent verifies required tools are available (GNU tar >= 1.28, zstd, stunnel) - `inst-verify-tools`
+3. [x] - `p1` - **IF** any required tool is missing or below minimum version **RETURN** error and abort startup - `inst-check-tools-fail`
+4. [x] - `p1` - Agent reads Kubernetes ServiceAccount JWT token from mounted volume - `inst-read-jwt`
+5. [x] - `p1` - Agent discovers local PVCs using algorithm `cpt-katapult-algo-agent-system-discover-pvcs` - `inst-initial-discover`
+6. [x] - `p1` - Agent initiates outbound gRPC connection to control plane over mTLS (transport-level authentication and encryption) - `inst-grpc-connect`
+7. [x] - `p1` - API: gRPC AgentService.Register (cluster ID, node name, tool versions, PVC inventory, JWT token) - `inst-grpc-register`
+8. [x] - `p1` - Control plane validates agent identity using algorithm `cpt-katapult-algo-agent-system-validate-registration` - `inst-validate-reg`
+9. [x] - `p1` - **IF** validation fails **RETURN** error with rejection reason - `inst-reject-reg`
+10. [x] - `p1` - DB: Within a single transaction: UPSERT agents(cluster_id, node_name, healthy=true, tools, last_heartbeat=now), DELETE agent_pvcs WHERE agent_id=?, INSERT agent_pvcs for each discovered PVC - `inst-db-persist-registration`
+11. [x] - `p1` - **RETURN** Registered (agent_id) - `inst-return-registered`
 
 ### Agent Heartbeat
 
-- [ ] `p1` - **ID**: `cpt-katapult-flow-agent-system-heartbeat`
+- [x] `p1` - **ID**: `cpt-katapult-flow-agent-system-heartbeat`
 
 **Actor**: `cpt-katapult-actor-agent`
 
@@ -132,18 +132,18 @@ Design constraints satisfied:
 - Heartbeat received on unauthenticated connection and control plane rejects with error
 
 **Steps**:
-1. [ ] - `p1` - Agent waits for heartbeat interval (configurable, default 30s) - `inst-wait-interval`
-2. [ ] - `p1` - Agent re-discovers local PVCs using algorithm `cpt-katapult-algo-agent-system-discover-pvcs` - `inst-heartbeat-discover`
-3. [ ] - `p1` - Agent sends heartbeat over the authenticated gRPC connection established during registration (mTLS channel with agent identity) - `inst-grpc-heartbeat`
-4. [ ] - `p1` - Control plane verifies the heartbeat originates from an authenticated connection and the agent_id matches the connection identity - `inst-verify-heartbeat-auth`
-5. [ ] - `p1` - **IF** authentication fails or agent_id does not match connection identity **RETURN** error "Unauthenticated heartbeat" - `inst-reject-heartbeat`
-6. [ ] - `p1` - DB: UPDATE agents SET healthy=true, last_heartbeat=now WHERE id=? - `inst-db-update-heartbeat`
-7. [ ] - `p1` - DB: Within a single transaction: DELETE agent_pvcs WHERE agent_id=? THEN INSERT agent_pvcs for each discovered PVC - `inst-db-replace-pvcs-heartbeat`
-8. [ ] - `p1` - **RETURN** Acknowledged - `inst-return-ack`
+1. [x] - `p1` - Agent waits for heartbeat interval (configurable, default 30s) - `inst-wait-interval`
+2. [x] - `p1` - Agent re-discovers local PVCs using algorithm `cpt-katapult-algo-agent-system-discover-pvcs` - `inst-heartbeat-discover`
+3. [x] - `p1` - Agent sends heartbeat over the authenticated gRPC connection established during registration (mTLS channel with agent identity) - `inst-grpc-heartbeat`
+4. [x] - `p1` - Control plane verifies the heartbeat originates from an authenticated connection and the agent_id matches the connection identity - `inst-verify-heartbeat-auth`
+5. [x] - `p1` - **IF** authentication fails or agent_id does not match connection identity **RETURN** error "Unauthenticated heartbeat" - `inst-reject-heartbeat`
+6. [x] - `p1` - DB: UPDATE agents SET healthy=true, last_heartbeat=now WHERE id=? - `inst-db-update-heartbeat`
+7. [x] - `p1` - DB: Within a single transaction: DELETE agent_pvcs WHERE agent_id=? THEN INSERT agent_pvcs for each discovered PVC - `inst-db-replace-pvcs-heartbeat`
+8. [x] - `p1` - **RETURN** Acknowledged - `inst-return-ack`
 
 ### PVC Discovery
 
-- [ ] `p1` - **ID**: `cpt-katapult-flow-agent-system-discover-pvcs`
+- [x] `p1` - **ID**: `cpt-katapult-flow-agent-system-discover-pvcs`
 
 **Actor**: `cpt-katapult-actor-agent`
 
@@ -155,93 +155,93 @@ Design constraints satisfied:
 - PVC has no bound PV and is excluded from inventory
 
 **Steps**:
-1. [ ] - `p1` - Agent queries Kubernetes API for PVCs in permitted namespaces - `inst-query-pvcs`
-2. [ ] - `p1` - Agent applies namespace and label filters using algorithm `cpt-katapult-algo-agent-system-discover-pvcs` - `inst-apply-filters`
-3. [ ] - `p1` - **FOR EACH** PVC in filtered results - `inst-iterate-pvcs`
-   1. [ ] - `p1` - Resolve PV binding from PVC spec.volumeName - `inst-resolve-pv`
-   2. [ ] - `p1` - **IF** PVC has no bound PV, skip PVC - `inst-skip-unbound`
-   3. [ ] - `p1` - Extract PV size from capacity, storage class from spec, and node affinity from PV topology constraints - `inst-extract-pv-attrs`
-   4. [ ] - `p1` - **IF** PV node affinity does not match current node, skip PVC - `inst-skip-wrong-node`
-   5. [ ] - `p1` - Add PVCInfo(pvc_name, size_bytes, storage_class, node_affinity) to inventory - `inst-add-to-inventory`
-4. [ ] - `p1` - **RETURN** PVC inventory list - `inst-return-inventory`
+1. [x] - `p1` - Agent queries Kubernetes API for PVCs in permitted namespaces - `inst-query-pvcs`
+2. [x] - `p1` - Agent applies namespace and label filters using algorithm `cpt-katapult-algo-agent-system-discover-pvcs` - `inst-apply-filters`
+3. [x] - `p1` - **FOR EACH** PVC in filtered results - `inst-iterate-pvcs`
+   1. [x] - `p1` - Resolve PV binding from PVC spec.volumeName - `inst-resolve-pv`
+   2. [x] - `p1` - **IF** PVC has no bound PV, skip PVC - `inst-skip-unbound`
+   3. [x] - `p1` - Extract PV size from capacity, storage class from spec, and node affinity from PV topology constraints - `inst-extract-pv-attrs`
+   4. [x] - `p1` - **IF** PV node affinity does not match current node, skip PVC - `inst-skip-wrong-node`
+   5. [x] - `p1` - Add PVCInfo(pvc_name, size_bytes, storage_class, node_affinity) to inventory - `inst-add-to-inventory`
+4. [x] - `p1` - **RETURN** PVC inventory list - `inst-return-inventory`
 
 ## 3. Processes / Business Logic (CDSL)
 
 ### Validate Registration
 
-- [ ] `p1` - **ID**: `cpt-katapult-algo-agent-system-validate-registration`
+- [x] `p1` - **ID**: `cpt-katapult-algo-agent-system-validate-registration`
 
 **Input**: Registration request (cluster ID, node name, tool versions, PVC inventory, JWT token)
 
 **Output**: Validation result (success with agent ID, or rejection reason)
 
 **Steps**:
-1. [ ] - `p1` - Verify JWT token signature against Kubernetes API server public key - `inst-verify-jwt`
-2. [ ] - `p1` - **IF** JWT invalid or expired **RETURN** error "Invalid agent identity token" - `inst-reject-jwt`
-3. [ ] - `p1` - Extract cluster identity and ServiceAccount from JWT claims - `inst-extract-claims`
-4. [ ] - `p1` - **IF** ServiceAccount does not match expected agent ServiceAccount **RETURN** error "Unauthorized ServiceAccount" - `inst-reject-sa`
-5. [ ] - `p1` - Verify required tool versions: tar >= 1.28, zstd present, stunnel present - `inst-check-tool-versions`
-6. [ ] - `p1` - **IF** any tool below minimum version **RETURN** error with missing tool details - `inst-reject-tools`
-7. [ ] - `p1` - DB: SELECT agents WHERE cluster_id=? AND node_name=? - `inst-db-check-existing`
-8. [ ] - `p1` - **IF** existing agent found, update existing record (re-registration) - `inst-handle-reregister`
-9. [ ] - `p1` - **ELSE** generate new agent UUID - `inst-generate-id`
-10. [ ] - `p1` - **RETURN** success (agent_id) - `inst-return-success`
+1. [x] - `p1` - Verify JWT token signature against Kubernetes API server public key - `inst-verify-jwt`
+2. [x] - `p1` - **IF** JWT invalid or expired **RETURN** error "Invalid agent identity token" - `inst-reject-jwt`
+3. [x] - `p1` - Extract cluster identity and ServiceAccount from JWT claims - `inst-extract-claims`
+4. [x] - `p1` - **IF** ServiceAccount does not match expected agent ServiceAccount **RETURN** error "Unauthorized ServiceAccount" - `inst-reject-sa`
+5. [x] - `p1` - Verify required tool versions: tar >= 1.28, zstd present, stunnel present - `inst-check-tool-versions`
+6. [x] - `p1` - **IF** any tool below minimum version **RETURN** error with missing tool details - `inst-reject-tools`
+7. [x] - `p1` - DB: SELECT agents WHERE cluster_id=? AND node_name=? - `inst-db-check-existing`
+8. [x] - `p1` - **IF** existing agent found, update existing record (re-registration) - `inst-handle-reregister`
+9. [x] - `p1` - **ELSE** generate new agent UUID - `inst-generate-id`
+10. [x] - `p1` - **RETURN** success (agent_id) - `inst-return-success`
 
 ### Discover PVCs
 
-- [ ] `p1` - **ID**: `cpt-katapult-algo-agent-system-discover-pvcs`
+- [x] `p1` - **ID**: `cpt-katapult-algo-agent-system-discover-pvcs`
 
 **Input**: Kubernetes API client, node name, namespace/label filter configuration
 
 **Output**: List of PVCInfo entries for the current node
 
 **Steps**:
-1. [ ] - `p1` - Read PVC boundary configuration (namespace allowlist, label selectors) - `inst-read-config`
-2. [ ] - `p1` - Query Kubernetes API: LIST PersistentVolumeClaims with namespace and label filters - `inst-k8s-list-pvcs`
-3. [ ] - `p1` - **IF** Kubernetes API returns error, retry with exponential backoff (max 3 attempts) - `inst-retry-k8s`
-4. [ ] - `p1` - **IF** all retries fail **RETURN** error "PVC discovery failed: Kubernetes API unavailable" - `inst-fail-k8s`
-5. [ ] - `p1` - **FOR EACH** PVC in API response - `inst-iterate-pvcs-algo`
-   1. [ ] - `p1` - **IF** PVC phase is not Bound, skip - `inst-skip-not-bound`
-   2. [ ] - `p1` - Resolve PersistentVolume from PVC spec.volumeName - `inst-resolve-pv-algo`
-   3. [ ] - `p1` - Extract size from PV spec.capacity.storage - `inst-extract-size`
-   4. [ ] - `p1` - Extract storage class from PV spec.storageClassName - `inst-extract-sc`
-   5. [ ] - `p1` - Extract node affinity from PV spec.nodeAffinity or topology constraints - `inst-extract-affinity`
-   6. [ ] - `p1` - **IF** node affinity does not include current node, skip - `inst-skip-non-local`
-   7. [ ] - `p1` - Build PVCInfo(pvc_name=namespace/name, size_bytes, storage_class, node_affinity) - `inst-build-pvcinfo`
-6. [ ] - `p1` - **RETURN** filtered PVCInfo list - `inst-return-pvcs`
+1. [x] - `p1` - Read PVC boundary configuration (namespace allowlist, label selectors) - `inst-read-config`
+2. [x] - `p1` - Query Kubernetes API: LIST PersistentVolumeClaims with namespace and label filters - `inst-k8s-list-pvcs`
+3. [x] - `p1` - **IF** Kubernetes API returns error, retry with exponential backoff (max 3 attempts) - `inst-retry-k8s`
+4. [x] - `p1` - **IF** all retries fail **RETURN** error "PVC discovery failed: Kubernetes API unavailable" - `inst-fail-k8s`
+5. [x] - `p1` - **FOR EACH** PVC in API response - `inst-iterate-pvcs-algo`
+   1. [x] - `p1` - **IF** PVC phase is not Bound, skip - `inst-skip-not-bound`
+   2. [x] - `p1` - Resolve PersistentVolume from PVC spec.volumeName - `inst-resolve-pv-algo`
+   3. [x] - `p1` - Extract size from PV spec.capacity.storage - `inst-extract-size`
+   4. [x] - `p1` - Extract storage class from PV spec.storageClassName - `inst-extract-sc`
+   5. [x] - `p1` - Extract node affinity from PV spec.nodeAffinity or topology constraints - `inst-extract-affinity`
+   6. [x] - `p1` - **IF** node affinity does not include current node, skip - `inst-skip-non-local`
+   7. [x] - `p1` - Build PVCInfo(pvc_name=namespace/name, size_bytes, storage_class, node_affinity) - `inst-build-pvcinfo`
+6. [x] - `p1` - **RETURN** filtered PVCInfo list - `inst-return-pvcs`
 
 ### Evaluate Agent Health
 
-- [ ] `p1` - **ID**: `cpt-katapult-algo-agent-system-evaluate-health`
+- [x] `p1` - **ID**: `cpt-katapult-algo-agent-system-evaluate-health`
 
 **Input**: Agent registry, configurable heartbeat timeout (default 90s)
 
 **Output**: Updated agent health statuses
 
 **Steps**:
-1. [ ] - `p1` - DB: SELECT agents WHERE healthy=true AND last_heartbeat < now() - timeout - `inst-query-stale`
-2. [ ] - `p1` - **FOR EACH** stale agent - `inst-iterate-stale`
-   1. [ ] - `p1` - DB: UPDATE agents SET healthy=false WHERE id=? - `inst-mark-unhealthy`
-3. [ ] - `p1` - **RETURN** count of agents marked unhealthy - `inst-return-count`
+1. [x] - `p1` - DB: SELECT agents WHERE healthy=true AND last_heartbeat < now() - timeout - `inst-query-stale`
+2. [x] - `p1` - **FOR EACH** stale agent - `inst-iterate-stale`
+   1. [x] - `p1` - DB: UPDATE agents SET healthy=false WHERE id=? - `inst-mark-unhealthy`
+3. [x] - `p1` - **RETURN** count of agents marked unhealthy - `inst-return-count`
 
 ## 4. States (CDSL)
 
 ### Agent Lifecycle State Machine
 
-- [ ] `p1` - **ID**: `cpt-katapult-state-agent-system-agent-lifecycle`
+- [x] `p1` - **ID**: `cpt-katapult-state-agent-system-agent-lifecycle`
 
 **States**: Registering, Healthy, Unhealthy, Disconnected
 
 **Initial State**: Registering
 
 **Transitions**:
-1. [ ] - `p1` - **FROM** Registering **TO** Healthy **WHEN** registration succeeds and agent ID is assigned - `inst-reg-to-healthy`
-2. [ ] - `p1` - **FROM** Registering **TO** Disconnected **WHEN** registration fails (invalid JWT, missing tools) - `inst-reg-to-disconnected`
-3. [ ] - `p1` - **FROM** Healthy **TO** Unhealthy **WHEN** heartbeat timeout exceeded (configurable, default 90s) - `inst-healthy-to-unhealthy`
-4. [ ] - `p1` - **FROM** Unhealthy **TO** Healthy **WHEN** heartbeat received from previously unhealthy agent - `inst-unhealthy-to-healthy`
-5. [ ] - `p1` - **FROM** Unhealthy **TO** Disconnected **WHEN** no heartbeat received for extended timeout (configurable, default 5 min) - `inst-unhealthy-to-disconnected`
-6. [ ] - `p1` - **FROM** Disconnected **TO** Registering **WHEN** agent reconnects and initiates re-registration - `inst-disconnected-to-registering`
-7. [ ] - `p1` - **FROM** Healthy **TO** Registering **WHEN** agent reconnects after control plane restart - `inst-healthy-to-registering`
+1. [x] - `p1` - **FROM** Registering **TO** Healthy **WHEN** registration succeeds and agent ID is assigned - `inst-reg-to-healthy`
+2. [x] - `p1` - **FROM** Registering **TO** Disconnected **WHEN** registration fails (invalid JWT, missing tools) - `inst-reg-to-disconnected`
+3. [x] - `p1` - **FROM** Healthy **TO** Unhealthy **WHEN** heartbeat timeout exceeded (configurable, default 90s) - `inst-healthy-to-unhealthy`
+4. [x] - `p1` - **FROM** Unhealthy **TO** Healthy **WHEN** heartbeat received from previously unhealthy agent - `inst-unhealthy-to-healthy`
+5. [x] - `p1` - **FROM** Unhealthy **TO** Disconnected **WHEN** no heartbeat received for extended timeout (configurable, default 5 min) - `inst-unhealthy-to-disconnected`
+6. [x] - `p1` - **FROM** Disconnected **TO** Registering **WHEN** agent reconnects and initiates re-registration - `inst-disconnected-to-registering`
+7. [x] - `p1` - **FROM** Healthy **TO** Registering **WHEN** agent reconnects after control plane restart - `inst-healthy-to-registering`
 
 **Invariants**: All transitions not listed above are invalid. In particular:
 - Disconnected → Healthy is prohibited (agent must re-register first)
@@ -252,7 +252,7 @@ Design constraints satisfied:
 
 ### Agent Registration
 
-- [ ] `p1` - **ID**: `cpt-katapult-dod-agent-system-registration`
+- [x] `p1` - **ID**: `cpt-katapult-dod-agent-system-registration`
 
 The system **MUST** accept agent registrations via gRPC AgentService.Register, validating cluster identity via Kubernetes ServiceAccount JWT, storing agent metadata (cluster ID, node name, tool versions), and returning a unique agent ID. Re-registration from the same cluster+node pair updates the existing record.
 
@@ -279,7 +279,7 @@ The system **MUST** accept agent registrations via gRPC AgentService.Register, v
 
 ### Agent Heartbeat Monitoring
 
-- [ ] `p1` - **ID**: `cpt-katapult-dod-agent-system-heartbeat`
+- [x] `p1` - **ID**: `cpt-katapult-dod-agent-system-heartbeat`
 
 The system **MUST** accept periodic heartbeats via gRPC AgentService.Heartbeat, update the agent's last_heartbeat timestamp and health status, refresh PVC inventory, and mark agents unhealthy when heartbeat timeout is exceeded (configurable, default 90s).
 
@@ -302,7 +302,7 @@ The system **MUST** accept periodic heartbeats via gRPC AgentService.Heartbeat, 
 
 ### PVC Discovery
 
-- [ ] `p1` - **ID**: `cpt-katapult-dod-agent-system-pvc-discovery`
+- [x] `p1` - **ID**: `cpt-katapult-dod-agent-system-pvc-discovery`
 
 The system **MUST** discover PVCs on the agent's node by querying the Kubernetes API, resolving PV bindings (size, storage class, node affinity), filtering by configured namespace and label boundaries, and reporting the inventory to the control plane during registration and heartbeats.
 
@@ -324,7 +324,7 @@ The system **MUST** discover PVCs on the agent's node by querying the Kubernetes
 
 ### Agent Authentication
 
-- [ ] `p1` - **ID**: `cpt-katapult-dod-agent-system-auth`
+- [x] `p1` - **ID**: `cpt-katapult-dod-agent-system-auth`
 
 The system **MUST** authenticate agents using Kubernetes ServiceAccount JWT tokens during gRPC registration. The control plane validates the JWT signature against the Kubernetes API server and verifies the ServiceAccount matches the expected agent identity.
 
@@ -346,7 +346,7 @@ The system **MUST** authenticate agents using Kubernetes ServiceAccount JWT toke
 
 ### PVC Boundary Enforcement
 
-- [ ] `p1` - **ID**: `cpt-katapult-dod-agent-system-pvc-boundary`
+- [x] `p1` - **ID**: `cpt-katapult-dod-agent-system-pvc-boundary`
 
 The system **MUST** enforce PVC boundaries by applying configurable namespace allowlists and label selectors during PVC discovery. Only PVCs matching the configured filters are included in the agent's inventory. The system reads source and writes destination but never provisions or deletes PVCs.
 
@@ -365,7 +365,7 @@ The system **MUST** enforce PVC boundaries by applying configurable namespace al
 
 ### Agent Inventory Persistence
 
-- [ ] `p1` - **ID**: `cpt-katapult-dod-agent-system-persistence`
+- [x] `p1` - **ID**: `cpt-katapult-dod-agent-system-persistence`
 
 The system **MUST** persist agent registrations and PVC inventories to PostgreSQL. The agents table stores cluster identity, node name, health status, tool versions, and heartbeat timestamps. The agent_pvcs table stores discovered PVC metadata with foreign key to the agents table and CASCADE delete.
 

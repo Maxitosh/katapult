@@ -25,6 +25,8 @@ func NewAgentServer(registrySvc *registry.Service) *AgentServer {
 }
 
 // Register handles agent registration.
+// @cpt-flow:cpt-katapult-flow-agent-system-register:p1
+// @cpt-dod:cpt-katapult-dod-agent-system-registration:p1
 func (s *AgentServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterResponse, error) {
 	if req.ClusterId == "" {
 		return nil, status.Error(codes.InvalidArgument, "cluster_id is required")
@@ -55,24 +57,32 @@ func (s *AgentServer) Register(ctx context.Context, req *pb.RegisterRequest) (*p
 		})
 	}
 
+	// @cpt-begin:cpt-katapult-flow-agent-system-register:p1:inst-validate-reg
 	agentID, err := s.registrySvc.RegisterAgent(ctx, req.ClusterId, req.NodeName, tools, pvcs, jwtNamespace)
+	// @cpt-end:cpt-katapult-flow-agent-system-register:p1:inst-validate-reg
+	// @cpt-begin:cpt-katapult-flow-agent-system-register:p1:inst-reject-reg
 	if err != nil {
 		if strings.Contains(err.Error(), "namespace mismatch") {
 			return nil, status.Errorf(codes.PermissionDenied, "registration failed: %v", err)
 		}
 		return nil, status.Errorf(codes.Internal, "registration failed: %v", err)
 	}
+	// @cpt-end:cpt-katapult-flow-agent-system-register:p1:inst-reject-reg
 
+	// @cpt-begin:cpt-katapult-flow-agent-system-register:p1:inst-return-registered
 	return &pb.RegisterResponse{AgentId: agentID.String()}, nil
+	// @cpt-end:cpt-katapult-flow-agent-system-register:p1:inst-return-registered
 }
 
 // Heartbeat handles agent heartbeat messages.
+// @cpt-flow:cpt-katapult-flow-agent-system-heartbeat:p1
 func (s *AgentServer) Heartbeat(ctx context.Context, req *pb.HeartbeatRequest) (*pb.HeartbeatResponse, error) {
 	agentID, err := uuid.Parse(req.AgentId)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid agent_id: %v", err)
 	}
 
+	// @cpt-begin:cpt-katapult-flow-agent-system-heartbeat:p1:inst-verify-heartbeat-auth
 	// Verify JWT namespace matches the agent's registered namespace.
 	if claims, ok := ClaimsFromContext(ctx); ok && claims.Kubernetes != nil {
 		agent, err := s.registrySvc.GetAgent(ctx, agentID)
@@ -82,10 +92,13 @@ func (s *AgentServer) Heartbeat(ctx context.Context, req *pb.HeartbeatRequest) (
 		if agent == nil {
 			return nil, status.Errorf(codes.NotFound, "agent %s not found", agentID)
 		}
+		// @cpt-begin:cpt-katapult-flow-agent-system-heartbeat:p1:inst-reject-heartbeat
 		if agent.JWTNamespace != "" && claims.Kubernetes.Namespace != agent.JWTNamespace {
 			return nil, status.Errorf(codes.PermissionDenied, "JWT namespace mismatch for agent %s", agentID)
 		}
+		// @cpt-end:cpt-katapult-flow-agent-system-heartbeat:p1:inst-reject-heartbeat
 	}
+	// @cpt-end:cpt-katapult-flow-agent-system-heartbeat:p1:inst-verify-heartbeat-auth
 
 	pvcs := make([]domain.PVCInfo, 0, len(req.Pvcs))
 	for _, p := range req.Pvcs {
@@ -97,12 +110,16 @@ func (s *AgentServer) Heartbeat(ctx context.Context, req *pb.HeartbeatRequest) (
 		})
 	}
 
+	// @cpt-begin:cpt-katapult-flow-agent-system-heartbeat:p1:inst-db-update-heartbeat
 	if err := s.registrySvc.Heartbeat(ctx, agentID, pvcs); err != nil {
 		if strings.Contains(err.Error(), "must re-register") {
 			return nil, status.Errorf(codes.FailedPrecondition, "heartbeat failed: %v", err)
 		}
 		return nil, status.Errorf(codes.Internal, "heartbeat failed: %v", err)
 	}
+	// @cpt-end:cpt-katapult-flow-agent-system-heartbeat:p1:inst-db-update-heartbeat
 
+	// @cpt-begin:cpt-katapult-flow-agent-system-heartbeat:p1:inst-return-ack
 	return &pb.HeartbeatResponse{}, nil
+	// @cpt-end:cpt-katapult-flow-agent-system-heartbeat:p1:inst-return-ack
 }

@@ -13,7 +13,9 @@ var tarVersionRe = regexp.MustCompile(`(\d+\.\d+(?:\.\d+)?)`)
 
 // VerifyTools checks that required tools (tar, zstd, stunnel) are available
 // on the system and returns their versions.
+// @cpt-algo:cpt-katapult-algo-agent-system-validate-registration:p1
 func VerifyTools() (domain.ToolVersions, error) {
+	// @cpt-begin:cpt-katapult-algo-agent-system-validate-registration:p1:inst-check-tool-versions
 	var tools domain.ToolVersions
 	var errs []string
 
@@ -42,6 +44,7 @@ func VerifyTools() (domain.ToolVersions, error) {
 		return tools, fmt.Errorf("missing required tools: %s", strings.Join(errs, "; "))
 	}
 	return tools, nil
+	// @cpt-end:cpt-katapult-algo-agent-system-validate-registration:p1:inst-check-tool-versions
 }
 
 func getTarVersion() (string, error) {

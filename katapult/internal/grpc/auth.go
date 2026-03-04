@@ -48,19 +48,29 @@ type ServiceAccountID struct {
 
 // ValidateToken parses and validates a JWT token string.
 // Returns the parsed claims or an error.
+// @cpt-algo:cpt-katapult-algo-agent-system-validate-registration:p1
+// @cpt-dod:cpt-katapult-dod-agent-system-auth:p1
 func (v *JWTValidator) ValidateToken(tokenStr string) (*Claims, error) {
+	// @cpt-begin:cpt-katapult-algo-agent-system-validate-registration:p1:inst-verify-jwt
 	claims := &Claims{}
 	_, err := jwt.ParseWithClaims(tokenStr, claims, v.keyFunc)
+	// @cpt-end:cpt-katapult-algo-agent-system-validate-registration:p1:inst-verify-jwt
+	// @cpt-begin:cpt-katapult-algo-agent-system-validate-registration:p1:inst-reject-jwt
 	if err != nil {
 		return nil, fmt.Errorf("invalid agent identity token: %w", err)
 	}
+	// @cpt-end:cpt-katapult-algo-agent-system-validate-registration:p1:inst-reject-jwt
 
+	// @cpt-begin:cpt-katapult-algo-agent-system-validate-registration:p1:inst-extract-claims
 	if v.expectedServiceAccount != "" && claims.Kubernetes != nil && claims.Kubernetes.ServiceAccount != nil {
+		// @cpt-begin:cpt-katapult-algo-agent-system-validate-registration:p1:inst-reject-sa
 		if claims.Kubernetes.ServiceAccount.Name != v.expectedServiceAccount {
 			return nil, fmt.Errorf("unauthorized ServiceAccount: expected %q, got %q",
 				v.expectedServiceAccount, claims.Kubernetes.ServiceAccount.Name)
 		}
+		// @cpt-end:cpt-katapult-algo-agent-system-validate-registration:p1:inst-reject-sa
 	}
+	// @cpt-end:cpt-katapult-algo-agent-system-validate-registration:p1:inst-extract-claims
 
 	return claims, nil
 }
@@ -75,6 +85,7 @@ func ClaimsFromContext(ctx context.Context) (*Claims, bool) {
 
 // UnaryAuthInterceptor returns a gRPC unary interceptor that validates JWT tokens
 // from the "authorization" metadata header.
+// @cpt-dod:cpt-katapult-dod-agent-system-auth:p1
 func UnaryAuthInterceptor(validator *JWTValidator) ggrpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *ggrpc.UnaryServerInfo, handler ggrpc.UnaryHandler) (any, error) {
 		token, err := extractToken(ctx)

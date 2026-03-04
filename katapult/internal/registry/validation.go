@@ -13,7 +13,9 @@ const minTarMinor = 28
 
 // ValidateTools checks that all required tools meet minimum version requirements.
 // Returns an error describing any missing or insufficient tools.
+// @cpt-algo:cpt-katapult-algo-agent-system-validate-registration:p1
 func ValidateTools(tools domain.ToolVersions) error {
+	// @cpt-begin:cpt-katapult-algo-agent-system-validate-registration:p1:inst-check-tool-versions
 	var errs []string
 
 	if tools.Tar == "" {
@@ -33,7 +35,11 @@ func ValidateTools(tools domain.ToolVersions) error {
 	if len(errs) > 0 {
 		return fmt.Errorf("tool verification failed: %s", strings.Join(errs, "; "))
 	}
+	// @cpt-end:cpt-katapult-algo-agent-system-validate-registration:p1:inst-check-tool-versions
+
+	// @cpt-begin:cpt-katapult-algo-agent-system-validate-registration:p1:inst-reject-tools
 	return nil
+	// @cpt-end:cpt-katapult-algo-agent-system-validate-registration:p1:inst-reject-tools
 }
 
 // validateTarVersion checks that tar version is >= 1.28.

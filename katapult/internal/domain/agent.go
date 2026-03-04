@@ -50,15 +50,31 @@ type PVCInfo struct {
 }
 
 // validTransitions defines the allowed state transitions for the agent lifecycle.
+// @cpt-state:cpt-katapult-state-agent-system-agent-lifecycle:p1
 var validTransitions = map[AgentState][]AgentState{
-	AgentStateRegistering:  {AgentStateHealthy, AgentStateDisconnected},
-	AgentStateHealthy:      {AgentStateUnhealthy, AgentStateRegistering},
-	AgentStateUnhealthy:    {AgentStateHealthy, AgentStateDisconnected},
+	// @cpt-begin:cpt-katapult-state-agent-system-agent-lifecycle:p1:inst-reg-to-healthy
+	// @cpt-begin:cpt-katapult-state-agent-system-agent-lifecycle:p1:inst-reg-to-disconnected
+	AgentStateRegistering: {AgentStateHealthy, AgentStateDisconnected},
+	// @cpt-end:cpt-katapult-state-agent-system-agent-lifecycle:p1:inst-reg-to-disconnected
+	// @cpt-end:cpt-katapult-state-agent-system-agent-lifecycle:p1:inst-reg-to-healthy
+	// @cpt-begin:cpt-katapult-state-agent-system-agent-lifecycle:p1:inst-healthy-to-unhealthy
+	// @cpt-begin:cpt-katapult-state-agent-system-agent-lifecycle:p1:inst-healthy-to-registering
+	AgentStateHealthy: {AgentStateUnhealthy, AgentStateRegistering},
+	// @cpt-end:cpt-katapult-state-agent-system-agent-lifecycle:p1:inst-healthy-to-registering
+	// @cpt-end:cpt-katapult-state-agent-system-agent-lifecycle:p1:inst-healthy-to-unhealthy
+	// @cpt-begin:cpt-katapult-state-agent-system-agent-lifecycle:p1:inst-unhealthy-to-healthy
+	// @cpt-begin:cpt-katapult-state-agent-system-agent-lifecycle:p1:inst-unhealthy-to-disconnected
+	AgentStateUnhealthy: {AgentStateHealthy, AgentStateDisconnected},
+	// @cpt-end:cpt-katapult-state-agent-system-agent-lifecycle:p1:inst-unhealthy-to-disconnected
+	// @cpt-end:cpt-katapult-state-agent-system-agent-lifecycle:p1:inst-unhealthy-to-healthy
+	// @cpt-begin:cpt-katapult-state-agent-system-agent-lifecycle:p1:inst-disconnected-to-registering
 	AgentStateDisconnected: {AgentStateRegistering},
+	// @cpt-end:cpt-katapult-state-agent-system-agent-lifecycle:p1:inst-disconnected-to-registering
 }
 
 // TransitionTo attempts to transition the agent to the target state.
 // Returns an error if the transition is invalid.
+// @cpt-state:cpt-katapult-state-agent-system-agent-lifecycle:p1
 func (a *Agent) TransitionTo(target AgentState) error {
 	allowed, ok := validTransitions[a.State]
 	if !ok {
