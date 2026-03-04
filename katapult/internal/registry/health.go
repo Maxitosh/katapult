@@ -29,9 +29,14 @@ func NewHealthEvaluator(repo AgentRepository, unhealthyTimeout, disconnectedTime
 
 // Evaluate runs a single health evaluation cycle.
 // Returns the number of agents marked unhealthy and disconnected.
+// @cpt-algo:cpt-katapult-algo-agent-system-evaluate-health:p1
+// @cpt-dod:cpt-katapult-dod-agent-system-heartbeat:p1
 func (h *HealthEvaluator) Evaluate(ctx context.Context) (unhealthy int, disconnected int, err error) {
 	now := time.Now()
 
+	// @cpt-begin:cpt-katapult-algo-agent-system-evaluate-health:p1:inst-query-stale
+	// @cpt-begin:cpt-katapult-algo-agent-system-evaluate-health:p1:inst-iterate-stale
+	// @cpt-begin:cpt-katapult-algo-agent-system-evaluate-health:p1:inst-mark-unhealthy
 	unhealthy, err = h.repo.MarkUnhealthy(ctx, now.Add(-h.unhealthyTimeout))
 	if err != nil {
 		return 0, 0, err
@@ -39,6 +44,9 @@ func (h *HealthEvaluator) Evaluate(ctx context.Context) (unhealthy int, disconne
 	if unhealthy > 0 {
 		h.logger.Info("marked agents unhealthy", "count", unhealthy)
 	}
+	// @cpt-end:cpt-katapult-algo-agent-system-evaluate-health:p1:inst-mark-unhealthy
+	// @cpt-end:cpt-katapult-algo-agent-system-evaluate-health:p1:inst-iterate-stale
+	// @cpt-end:cpt-katapult-algo-agent-system-evaluate-health:p1:inst-query-stale
 
 	disconnected, err = h.repo.MarkDisconnected(ctx, now.Add(-h.disconnectedTimeout))
 	if err != nil {
@@ -48,7 +56,9 @@ func (h *HealthEvaluator) Evaluate(ctx context.Context) (unhealthy int, disconne
 		h.logger.Info("marked agents disconnected", "count", disconnected)
 	}
 
+	// @cpt-begin:cpt-katapult-algo-agent-system-evaluate-health:p1:inst-return-count
 	return unhealthy, disconnected, nil
+	// @cpt-end:cpt-katapult-algo-agent-system-evaluate-health:p1:inst-return-count
 }
 
 // RunLoop starts the health evaluation loop at the given interval.

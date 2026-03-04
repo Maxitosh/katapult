@@ -23,7 +23,7 @@ import (
 
 // TLSConfig holds the TLS certificate paths for the agent client.
 type TLSConfig struct {
-	CACertPath    string
+	CACertPath     string
 	ClientCertPath string
 	ClientKeyPath  string
 }
@@ -82,7 +82,10 @@ func NewClient(address string, tlsCfg *TLSConfig, logger *slog.Logger) (*Client,
 }
 
 // Register sends a registration request to the control plane and stores the returned agent ID.
+// @cpt-flow:cpt-katapult-flow-agent-system-register:p1
+// @cpt-dod:cpt-katapult-dod-agent-system-registration:p1
 func (c *Client) Register(ctx context.Context, clusterID, nodeName, jwtToken string, tools domain.ToolVersions, pvcs []domain.PVCInfo) (string, error) {
+	// @cpt-begin:cpt-katapult-flow-agent-system-register:p1:inst-grpc-register
 	ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+jwtToken)
 
 	req := &pb.RegisterRequest{
@@ -103,16 +106,23 @@ func (c *Client) Register(ctx context.Context, clusterID, nodeName, jwtToken str
 	}
 
 	c.agentID = resp.AgentId
+	// @cpt-end:cpt-katapult-flow-agent-system-register:p1:inst-grpc-register
+
+	// @cpt-begin:cpt-katapult-flow-agent-system-register:p1:inst-return-registered
 	c.logger.Info("registered with control plane", "agent_id", c.agentID)
 	return c.agentID, nil
+	// @cpt-end:cpt-katapult-flow-agent-system-register:p1:inst-return-registered
 }
 
 // SendHeartbeat sends a heartbeat with updated PVC inventory to the control plane.
+// @cpt-flow:cpt-katapult-flow-agent-system-heartbeat:p1
+// @cpt-dod:cpt-katapult-dod-agent-system-heartbeat:p1
 func (c *Client) SendHeartbeat(ctx context.Context, pvcs []domain.PVCInfo) error {
 	if c.agentID == "" {
 		return fmt.Errorf("agent not registered")
 	}
 
+	// @cpt-begin:cpt-katapult-flow-agent-system-heartbeat:p1:inst-grpc-heartbeat
 	_, err := c.agent.Heartbeat(ctx, &pb.HeartbeatRequest{
 		AgentId: c.agentID,
 		Pvcs:    toPBPVCs(pvcs),
@@ -120,27 +130,35 @@ func (c *Client) SendHeartbeat(ctx context.Context, pvcs []domain.PVCInfo) error
 	if err != nil {
 		return fmt.Errorf("heartbeat failed: %w", err)
 	}
+	// @cpt-end:cpt-katapult-flow-agent-system-heartbeat:p1:inst-grpc-heartbeat
 
+	// @cpt-begin:cpt-katapult-flow-agent-system-heartbeat:p1:inst-return-ack
 	return nil
+	// @cpt-end:cpt-katapult-flow-agent-system-heartbeat:p1:inst-return-ack
 }
 
 // RunHeartbeatLoop runs the heartbeat loop, periodically sending heartbeats with
 // refreshed PVC inventory. If a heartbeat fails with a disconnect/re-register error,
 // regFunc is called to re-register the agent. Blocks until the context is cancelled.
+// @cpt-flow:cpt-katapult-flow-agent-system-heartbeat:p1
 func (c *Client) RunHeartbeatLoop(ctx context.Context, interval time.Duration, discoverer *PVCDiscoverer, regFunc func() error) {
+	// @cpt-begin:cpt-katapult-flow-agent-system-heartbeat:p1:inst-wait-interval
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
+	// @cpt-end:cpt-katapult-flow-agent-system-heartbeat:p1:inst-wait-interval
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			// @cpt-begin:cpt-katapult-flow-agent-system-heartbeat:p1:inst-heartbeat-discover
 			pvcs, err := discoverer.Discover(ctx)
 			if err != nil {
 				c.logger.Error("PVC discovery failed during heartbeat, sending heartbeat with empty PVCs", "error", err)
 				pvcs = nil
 			}
+			// @cpt-end:cpt-katapult-flow-agent-system-heartbeat:p1:inst-heartbeat-discover
 
 			if err := c.SendHeartbeat(ctx, pvcs); err != nil {
 				c.logger.Error("heartbeat failed", "error", err)

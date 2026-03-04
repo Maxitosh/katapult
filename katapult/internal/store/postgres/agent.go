@@ -21,12 +21,14 @@ func NewAgentRepository(pool *pgxpool.Pool) *AgentRepository {
 	return &AgentRepository{pool: pool}
 }
 
+// @cpt-dod:cpt-katapult-dod-agent-system-persistence:p1
 func (r *AgentRepository) UpsertAgent(ctx context.Context, agent *domain.Agent) error {
 	toolsJSON, err := json.Marshal(agent.Tools)
 	if err != nil {
 		return err
 	}
 
+	// @cpt-begin:cpt-katapult-flow-agent-system-register:p1:inst-db-persist-registration
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -64,6 +66,7 @@ func (r *AgentRepository) UpsertAgent(ctx context.Context, agent *domain.Agent) 
 	}
 
 	return tx.Commit(ctx)
+	// @cpt-end:cpt-katapult-flow-agent-system-register:p1:inst-db-persist-registration
 }
 
 func (r *AgentRepository) GetAgentByID(ctx context.Context, id uuid.UUID) (*domain.Agent, error) {
@@ -96,7 +99,10 @@ func (r *AgentRepository) GetAgentByClusterAndNode(ctx context.Context, clusterI
 	return agent, nil
 }
 
+// @cpt-dod:cpt-katapult-dod-agent-system-persistence:p1
 func (r *AgentRepository) UpdateHeartbeat(ctx context.Context, agentID uuid.UUID, pvcs []domain.PVCInfo) error {
+	// @cpt-begin:cpt-katapult-flow-agent-system-heartbeat:p1:inst-db-update-heartbeat
+	// @cpt-begin:cpt-katapult-flow-agent-system-heartbeat:p1:inst-db-replace-pvcs-heartbeat
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -124,6 +130,8 @@ func (r *AgentRepository) UpdateHeartbeat(ctx context.Context, agentID uuid.UUID
 	}
 
 	return tx.Commit(ctx)
+	// @cpt-end:cpt-katapult-flow-agent-system-heartbeat:p1:inst-db-replace-pvcs-heartbeat
+	// @cpt-end:cpt-katapult-flow-agent-system-heartbeat:p1:inst-db-update-heartbeat
 }
 
 func (r *AgentRepository) MarkUnhealthy(ctx context.Context, cutoff time.Time) (int, error) {

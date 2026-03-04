@@ -46,23 +46,39 @@ func NewPVCDiscoverer(client kubernetes.Interface, config DiscoveryConfig, logge
 
 // Discover queries Kubernetes for PVCs matching the boundary config,
 // resolves PV bindings, and filters by node affinity.
+// @cpt-flow:cpt-katapult-flow-agent-system-discover-pvcs:p1
+// @cpt-algo:cpt-katapult-algo-agent-system-discover-pvcs:p1
+// @cpt-dod:cpt-katapult-dod-agent-system-pvc-discovery:p1
+// @cpt-dod:cpt-katapult-dod-agent-system-pvc-boundary:p1
 func (d *PVCDiscoverer) Discover(ctx context.Context) ([]domain.PVCInfo, error) {
+	// @cpt-begin:cpt-katapult-algo-agent-system-discover-pvcs:p1:inst-read-config
 	namespaces := d.config.Namespaces
 	if len(namespaces) == 0 {
 		namespaces = []string{metav1.NamespaceAll}
 	}
+	// @cpt-end:cpt-katapult-algo-agent-system-discover-pvcs:p1:inst-read-config
 
 	var inventory []domain.PVCInfo
 
 	for _, ns := range namespaces {
+		// @cpt-begin:cpt-katapult-algo-agent-system-discover-pvcs:p1:inst-k8s-list-pvcs
+		// @cpt-begin:cpt-katapult-flow-agent-system-discover-pvcs:p1:inst-apply-filters
 		pvcs, err := d.listPVCsWithRetry(ctx, ns)
+		// @cpt-end:cpt-katapult-flow-agent-system-discover-pvcs:p1:inst-apply-filters
+		// @cpt-end:cpt-katapult-algo-agent-system-discover-pvcs:p1:inst-k8s-list-pvcs
+		// @cpt-begin:cpt-katapult-algo-agent-system-discover-pvcs:p1:inst-fail-k8s
 		if err != nil {
 			return nil, fmt.Errorf("PVC discovery failed: Kubernetes API unavailable: %w", err)
 		}
+		// @cpt-end:cpt-katapult-algo-agent-system-discover-pvcs:p1:inst-fail-k8s
 
+		// @cpt-begin:cpt-katapult-algo-agent-system-discover-pvcs:p1:inst-iterate-pvcs-algo
+		// @cpt-begin:cpt-katapult-flow-agent-system-discover-pvcs:p1:inst-iterate-pvcs
 		for i := range pvcs {
 			pvc := &pvcs[i]
 
+			// @cpt-begin:cpt-katapult-algo-agent-system-discover-pvcs:p1:inst-skip-not-bound
+			// @cpt-begin:cpt-katapult-flow-agent-system-discover-pvcs:p1:inst-skip-unbound
 			if pvc.Status.Phase != corev1.ClaimBound {
 				continue
 			}
@@ -71,28 +87,48 @@ func (d *PVCDiscoverer) Discover(ctx context.Context) ([]domain.PVCInfo, error) 
 			if pvName == "" {
 				continue
 			}
+			// @cpt-end:cpt-katapult-flow-agent-system-discover-pvcs:p1:inst-skip-unbound
+			// @cpt-end:cpt-katapult-algo-agent-system-discover-pvcs:p1:inst-skip-not-bound
 
+			// @cpt-begin:cpt-katapult-algo-agent-system-discover-pvcs:p1:inst-resolve-pv-algo
+			// @cpt-begin:cpt-katapult-flow-agent-system-discover-pvcs:p1:inst-resolve-pv
 			pv, err := d.getPVWithRetry(ctx, pvName)
 			if err != nil {
 				d.logger.Warn("failed to get PV, skipping PVC", "pv", pvName, "pvc", pvc.Name, "error", err)
 				continue
 			}
+			// @cpt-end:cpt-katapult-flow-agent-system-discover-pvcs:p1:inst-resolve-pv
+			// @cpt-end:cpt-katapult-algo-agent-system-discover-pvcs:p1:inst-resolve-pv-algo
 
+			// @cpt-begin:cpt-katapult-algo-agent-system-discover-pvcs:p1:inst-extract-affinity
+			// @cpt-begin:cpt-katapult-algo-agent-system-discover-pvcs:p1:inst-skip-non-local
+			// @cpt-begin:cpt-katapult-flow-agent-system-discover-pvcs:p1:inst-skip-wrong-node
 			nodeAffinity := extractNodeAffinity(pv)
 			if nodeAffinity != "" && nodeAffinity != d.config.NodeName {
 				continue
 			}
+			// @cpt-end:cpt-katapult-flow-agent-system-discover-pvcs:p1:inst-skip-wrong-node
+			// @cpt-end:cpt-katapult-algo-agent-system-discover-pvcs:p1:inst-skip-non-local
+			// @cpt-end:cpt-katapult-algo-agent-system-discover-pvcs:p1:inst-extract-affinity
 
+			// @cpt-begin:cpt-katapult-flow-agent-system-discover-pvcs:p1:inst-extract-pv-attrs
+			// @cpt-begin:cpt-katapult-algo-agent-system-discover-pvcs:p1:inst-extract-size
 			sizeBytes := int64(0)
 			if storage, ok := pv.Spec.Capacity[corev1.ResourceStorage]; ok {
 				sizeBytes = storage.Value()
 			}
+			// @cpt-end:cpt-katapult-algo-agent-system-discover-pvcs:p1:inst-extract-size
 
+			// @cpt-begin:cpt-katapult-algo-agent-system-discover-pvcs:p1:inst-extract-sc
 			storageClass := ""
 			if pv.Spec.StorageClassName != "" {
 				storageClass = pv.Spec.StorageClassName
 			}
+			// @cpt-end:cpt-katapult-algo-agent-system-discover-pvcs:p1:inst-extract-sc
+			// @cpt-end:cpt-katapult-flow-agent-system-discover-pvcs:p1:inst-extract-pv-attrs
 
+			// @cpt-begin:cpt-katapult-algo-agent-system-discover-pvcs:p1:inst-build-pvcinfo
+			// @cpt-begin:cpt-katapult-flow-agent-system-discover-pvcs:p1:inst-add-to-inventory
 			pvcName := pvc.Namespace + "/" + pvc.Name
 			inventory = append(inventory, domain.PVCInfo{
 				PVCName:      pvcName,
@@ -100,18 +136,28 @@ func (d *PVCDiscoverer) Discover(ctx context.Context) ([]domain.PVCInfo, error) 
 				StorageClass: storageClass,
 				NodeAffinity: nodeAffinity,
 			})
+			// @cpt-end:cpt-katapult-flow-agent-system-discover-pvcs:p1:inst-add-to-inventory
+			// @cpt-end:cpt-katapult-algo-agent-system-discover-pvcs:p1:inst-build-pvcinfo
 		}
+		// @cpt-end:cpt-katapult-flow-agent-system-discover-pvcs:p1:inst-iterate-pvcs
+		// @cpt-end:cpt-katapult-algo-agent-system-discover-pvcs:p1:inst-iterate-pvcs-algo
 	}
 
+	// @cpt-begin:cpt-katapult-algo-agent-system-discover-pvcs:p1:inst-return-pvcs
+	// @cpt-begin:cpt-katapult-flow-agent-system-discover-pvcs:p1:inst-return-inventory
 	return inventory, nil
+	// @cpt-end:cpt-katapult-flow-agent-system-discover-pvcs:p1:inst-return-inventory
+	// @cpt-end:cpt-katapult-algo-agent-system-discover-pvcs:p1:inst-return-pvcs
 }
 
+// @cpt-algo:cpt-katapult-algo-agent-system-discover-pvcs:p1
 func (d *PVCDiscoverer) listPVCsWithRetry(ctx context.Context, namespace string) ([]corev1.PersistentVolumeClaim, error) {
 	opts := metav1.ListOptions{}
 	if d.config.LabelSelector != "" {
 		opts.LabelSelector = d.config.LabelSelector
 	}
 
+	// @cpt-begin:cpt-katapult-algo-agent-system-discover-pvcs:p1:inst-retry-k8s
 	var lastErr error
 	for attempt := range d.config.MaxRetries {
 		list, err := d.client.CoreV1().PersistentVolumeClaims(namespace).List(ctx, opts)
@@ -127,6 +173,7 @@ func (d *PVCDiscoverer) listPVCsWithRetry(ctx context.Context, namespace string)
 		}
 	}
 	return nil, lastErr
+	// @cpt-end:cpt-katapult-algo-agent-system-discover-pvcs:p1:inst-retry-k8s
 }
 
 func (d *PVCDiscoverer) getPVWithRetry(ctx context.Context, name string) (*corev1.PersistentVolume, error) {
