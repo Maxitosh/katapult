@@ -19,8 +19,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	AgentService_Register_FullMethodName  = "/katapult.agent.v1alpha1.AgentService/Register"
-	AgentService_Heartbeat_FullMethodName = "/katapult.agent.v1alpha1.AgentService/Heartbeat"
+	AgentService_Register_FullMethodName       = "/katapult.agent.v1alpha1.AgentService/Register"
+	AgentService_Heartbeat_FullMethodName      = "/katapult.agent.v1alpha1.AgentService/Heartbeat"
+	AgentService_CreateTransfer_FullMethodName = "/katapult.agent.v1alpha1.AgentService/CreateTransfer"
+	AgentService_CancelTransfer_FullMethodName = "/katapult.agent.v1alpha1.AgentService/CancelTransfer"
+	AgentService_ReportProgress_FullMethodName = "/katapult.agent.v1alpha1.AgentService/ReportProgress"
+	AgentService_StreamCommands_FullMethodName = "/katapult.agent.v1alpha1.AgentService/StreamCommands"
 )
 
 // AgentServiceClient is the client API for AgentService service.
@@ -31,6 +35,14 @@ type AgentServiceClient interface {
 	Register(ctx context.Context, in *RegisterRequest, opts ...grpc.CallOption) (*RegisterResponse, error)
 	// Heartbeat sends a periodic health check with updated PVC inventory.
 	Heartbeat(ctx context.Context, in *HeartbeatRequest, opts ...grpc.CallOption) (*HeartbeatResponse, error)
+	// CreateTransfer creates a new volume transfer between PVCs.
+	CreateTransfer(ctx context.Context, in *CreateTransferRequest, opts ...grpc.CallOption) (*CreateTransferResponse, error)
+	// CancelTransfer cancels an active transfer.
+	CancelTransfer(ctx context.Context, in *CancelTransferRequest, opts ...grpc.CallOption) (*CancelTransferResponse, error)
+	// ReportProgress receives progress reports from agents.
+	ReportProgress(ctx context.Context, in *ReportProgressRequest, opts ...grpc.CallOption) (*ReportProgressResponse, error)
+	// StreamCommands opens a server-streaming channel for agent commands.
+	StreamCommands(ctx context.Context, in *StreamCommandsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[AgentCommand], error)
 }
 
 type agentServiceClient struct {
@@ -61,6 +73,55 @@ func (c *agentServiceClient) Heartbeat(ctx context.Context, in *HeartbeatRequest
 	return out, nil
 }
 
+func (c *agentServiceClient) CreateTransfer(ctx context.Context, in *CreateTransferRequest, opts ...grpc.CallOption) (*CreateTransferResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateTransferResponse)
+	err := c.cc.Invoke(ctx, AgentService_CreateTransfer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) CancelTransfer(ctx context.Context, in *CancelTransferRequest, opts ...grpc.CallOption) (*CancelTransferResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CancelTransferResponse)
+	err := c.cc.Invoke(ctx, AgentService_CancelTransfer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) ReportProgress(ctx context.Context, in *ReportProgressRequest, opts ...grpc.CallOption) (*ReportProgressResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReportProgressResponse)
+	err := c.cc.Invoke(ctx, AgentService_ReportProgress_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentServiceClient) StreamCommands(ctx context.Context, in *StreamCommandsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[AgentCommand], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &AgentService_ServiceDesc.Streams[0], AgentService_StreamCommands_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[StreamCommandsRequest, AgentCommand]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AgentService_StreamCommandsClient = grpc.ServerStreamingClient[AgentCommand]
+
 // AgentServiceServer is the server API for AgentService service.
 // All implementations must embed UnimplementedAgentServiceServer
 // for forward compatibility.
@@ -69,6 +130,14 @@ type AgentServiceServer interface {
 	Register(context.Context, *RegisterRequest) (*RegisterResponse, error)
 	// Heartbeat sends a periodic health check with updated PVC inventory.
 	Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error)
+	// CreateTransfer creates a new volume transfer between PVCs.
+	CreateTransfer(context.Context, *CreateTransferRequest) (*CreateTransferResponse, error)
+	// CancelTransfer cancels an active transfer.
+	CancelTransfer(context.Context, *CancelTransferRequest) (*CancelTransferResponse, error)
+	// ReportProgress receives progress reports from agents.
+	ReportProgress(context.Context, *ReportProgressRequest) (*ReportProgressResponse, error)
+	// StreamCommands opens a server-streaming channel for agent commands.
+	StreamCommands(*StreamCommandsRequest, grpc.ServerStreamingServer[AgentCommand]) error
 	mustEmbedUnimplementedAgentServiceServer()
 }
 
@@ -84,6 +153,18 @@ func (UnimplementedAgentServiceServer) Register(context.Context, *RegisterReques
 }
 func (UnimplementedAgentServiceServer) Heartbeat(context.Context, *HeartbeatRequest) (*HeartbeatResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Heartbeat not implemented")
+}
+func (UnimplementedAgentServiceServer) CreateTransfer(context.Context, *CreateTransferRequest) (*CreateTransferResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateTransfer not implemented")
+}
+func (UnimplementedAgentServiceServer) CancelTransfer(context.Context, *CancelTransferRequest) (*CancelTransferResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CancelTransfer not implemented")
+}
+func (UnimplementedAgentServiceServer) ReportProgress(context.Context, *ReportProgressRequest) (*ReportProgressResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ReportProgress not implemented")
+}
+func (UnimplementedAgentServiceServer) StreamCommands(*StreamCommandsRequest, grpc.ServerStreamingServer[AgentCommand]) error {
+	return status.Errorf(codes.Unimplemented, "method StreamCommands not implemented")
 }
 func (UnimplementedAgentServiceServer) mustEmbedUnimplementedAgentServiceServer() {}
 func (UnimplementedAgentServiceServer) testEmbeddedByValue()                      {}
@@ -142,6 +223,71 @@ func _AgentService_Heartbeat_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AgentService_CreateTransfer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateTransferRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).CreateTransfer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_CreateTransfer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).CreateTransfer(ctx, req.(*CreateTransferRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_CancelTransfer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CancelTransferRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).CancelTransfer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_CancelTransfer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).CancelTransfer(ctx, req.(*CancelTransferRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_ReportProgress_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReportProgressRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentServiceServer).ReportProgress(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentService_ReportProgress_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentServiceServer).ReportProgress(ctx, req.(*ReportProgressRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentService_StreamCommands_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(StreamCommandsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(AgentServiceServer).StreamCommands(m, &grpc.GenericServerStream[StreamCommandsRequest, AgentCommand]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type AgentService_StreamCommandsServer = grpc.ServerStreamingServer[AgentCommand]
+
 // AgentService_ServiceDesc is the grpc.ServiceDesc for AgentService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -157,7 +303,25 @@ var AgentService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "Heartbeat",
 			Handler:    _AgentService_Heartbeat_Handler,
 		},
+		{
+			MethodName: "CreateTransfer",
+			Handler:    _AgentService_CreateTransfer_Handler,
+		},
+		{
+			MethodName: "CancelTransfer",
+			Handler:    _AgentService_CancelTransfer_Handler,
+		},
+		{
+			MethodName: "ReportProgress",
+			Handler:    _AgentService_ReportProgress_Handler,
+		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "StreamCommands",
+			Handler:       _AgentService_StreamCommands_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "api/proto/agent/v1alpha1/agent_service.proto",
 }

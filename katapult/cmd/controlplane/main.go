@@ -104,7 +104,7 @@ func run(logger *slog.Logger) error {
 		logger.Warn("TLS_CERT/TLS_KEY not set, running without TLS")
 	}
 
-	agentServer := agentgrpc.NewAgentServer(svc)
+	agentServer := agentgrpc.NewAgentServer(svc, nil)
 	grpcServer := grpc.NewServer(serverOpts...)
 	pb.RegisterAgentServiceServer(grpcServer, agentServer)
 
