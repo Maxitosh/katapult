@@ -15,7 +15,7 @@ func setupTestServer(t *testing.T) *AgentServer {
 	t.Helper()
 	repo := testutil.NewMemRepo()
 	svc := registry.NewService(repo, slog.Default())
-	return NewAgentServer(svc)
+	return NewAgentServer(svc, nil)
 }
 
 // contextWithClaims returns a context with JWT claims for the given namespace.

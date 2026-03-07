@@ -357,6 +357,644 @@ func (*HeartbeatResponse) Descriptor() ([]byte, []int) {
 	return file_api_proto_agent_v1alpha1_agent_service_proto_rawDescGZIP(), []int{5}
 }
 
+type CreateTransferRequest struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	SourceCluster      string                 `protobuf:"bytes,1,opt,name=source_cluster,json=sourceCluster,proto3" json:"source_cluster,omitempty"`
+	SourcePvc          string                 `protobuf:"bytes,2,opt,name=source_pvc,json=sourcePvc,proto3" json:"source_pvc,omitempty"`
+	DestinationCluster string                 `protobuf:"bytes,3,opt,name=destination_cluster,json=destinationCluster,proto3" json:"destination_cluster,omitempty"`
+	DestinationPvc     string                 `protobuf:"bytes,4,opt,name=destination_pvc,json=destinationPvc,proto3" json:"destination_pvc,omitempty"`
+	StrategyOverride   *string                `protobuf:"bytes,5,opt,name=strategy_override,json=strategyOverride,proto3,oneof" json:"strategy_override,omitempty"`
+	AllowOverwrite     bool                   `protobuf:"varint,6,opt,name=allow_overwrite,json=allowOverwrite,proto3" json:"allow_overwrite,omitempty"`
+	RetryMax           *int32                 `protobuf:"varint,7,opt,name=retry_max,json=retryMax,proto3,oneof" json:"retry_max,omitempty"`
+	CreatedBy          string                 `protobuf:"bytes,8,opt,name=created_by,json=createdBy,proto3" json:"created_by,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *CreateTransferRequest) Reset() {
+	*x = CreateTransferRequest{}
+	mi := &file_api_proto_agent_v1alpha1_agent_service_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateTransferRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateTransferRequest) ProtoMessage() {}
+
+func (x *CreateTransferRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_agent_v1alpha1_agent_service_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateTransferRequest.ProtoReflect.Descriptor instead.
+func (*CreateTransferRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_agent_v1alpha1_agent_service_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *CreateTransferRequest) GetSourceCluster() string {
+	if x != nil {
+		return x.SourceCluster
+	}
+	return ""
+}
+
+func (x *CreateTransferRequest) GetSourcePvc() string {
+	if x != nil {
+		return x.SourcePvc
+	}
+	return ""
+}
+
+func (x *CreateTransferRequest) GetDestinationCluster() string {
+	if x != nil {
+		return x.DestinationCluster
+	}
+	return ""
+}
+
+func (x *CreateTransferRequest) GetDestinationPvc() string {
+	if x != nil {
+		return x.DestinationPvc
+	}
+	return ""
+}
+
+func (x *CreateTransferRequest) GetStrategyOverride() string {
+	if x != nil && x.StrategyOverride != nil {
+		return *x.StrategyOverride
+	}
+	return ""
+}
+
+func (x *CreateTransferRequest) GetAllowOverwrite() bool {
+	if x != nil {
+		return x.AllowOverwrite
+	}
+	return false
+}
+
+func (x *CreateTransferRequest) GetRetryMax() int32 {
+	if x != nil && x.RetryMax != nil {
+		return *x.RetryMax
+	}
+	return 0
+}
+
+func (x *CreateTransferRequest) GetCreatedBy() string {
+	if x != nil {
+		return x.CreatedBy
+	}
+	return ""
+}
+
+type CreateTransferResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TransferId    string                 `protobuf:"bytes,1,opt,name=transfer_id,json=transferId,proto3" json:"transfer_id,omitempty"`
+	State         string                 `protobuf:"bytes,2,opt,name=state,proto3" json:"state,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateTransferResponse) Reset() {
+	*x = CreateTransferResponse{}
+	mi := &file_api_proto_agent_v1alpha1_agent_service_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateTransferResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateTransferResponse) ProtoMessage() {}
+
+func (x *CreateTransferResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_agent_v1alpha1_agent_service_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateTransferResponse.ProtoReflect.Descriptor instead.
+func (*CreateTransferResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_agent_v1alpha1_agent_service_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *CreateTransferResponse) GetTransferId() string {
+	if x != nil {
+		return x.TransferId
+	}
+	return ""
+}
+
+func (x *CreateTransferResponse) GetState() string {
+	if x != nil {
+		return x.State
+	}
+	return ""
+}
+
+type CancelTransferRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TransferId    string                 `protobuf:"bytes,1,opt,name=transfer_id,json=transferId,proto3" json:"transfer_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelTransferRequest) Reset() {
+	*x = CancelTransferRequest{}
+	mi := &file_api_proto_agent_v1alpha1_agent_service_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelTransferRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelTransferRequest) ProtoMessage() {}
+
+func (x *CancelTransferRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_agent_v1alpha1_agent_service_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelTransferRequest.ProtoReflect.Descriptor instead.
+func (*CancelTransferRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_agent_v1alpha1_agent_service_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *CancelTransferRequest) GetTransferId() string {
+	if x != nil {
+		return x.TransferId
+	}
+	return ""
+}
+
+type CancelTransferResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TransferId    string                 `protobuf:"bytes,1,opt,name=transfer_id,json=transferId,proto3" json:"transfer_id,omitempty"`
+	State         string                 `protobuf:"bytes,2,opt,name=state,proto3" json:"state,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelTransferResponse) Reset() {
+	*x = CancelTransferResponse{}
+	mi := &file_api_proto_agent_v1alpha1_agent_service_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelTransferResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelTransferResponse) ProtoMessage() {}
+
+func (x *CancelTransferResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_agent_v1alpha1_agent_service_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelTransferResponse.ProtoReflect.Descriptor instead.
+func (*CancelTransferResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_agent_v1alpha1_agent_service_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *CancelTransferResponse) GetTransferId() string {
+	if x != nil {
+		return x.TransferId
+	}
+	return ""
+}
+
+func (x *CancelTransferResponse) GetState() string {
+	if x != nil {
+		return x.State
+	}
+	return ""
+}
+
+type ReportProgressRequest struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	TransferId       string                 `protobuf:"bytes,1,opt,name=transfer_id,json=transferId,proto3" json:"transfer_id,omitempty"`
+	BytesTransferred int64                  `protobuf:"varint,2,opt,name=bytes_transferred,json=bytesTransferred,proto3" json:"bytes_transferred,omitempty"`
+	BytesTotal       int64                  `protobuf:"varint,3,opt,name=bytes_total,json=bytesTotal,proto3" json:"bytes_total,omitempty"`
+	Speed            float64                `protobuf:"fixed64,4,opt,name=speed,proto3" json:"speed,omitempty"`
+	ChunksCompleted  int32                  `protobuf:"varint,5,opt,name=chunks_completed,json=chunksCompleted,proto3" json:"chunks_completed,omitempty"`
+	ChunksTotal      int32                  `protobuf:"varint,6,opt,name=chunks_total,json=chunksTotal,proto3" json:"chunks_total,omitempty"`
+	Status           string                 `protobuf:"bytes,7,opt,name=status,proto3" json:"status,omitempty"`
+	ErrorMessage     string                 `protobuf:"bytes,8,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *ReportProgressRequest) Reset() {
+	*x = ReportProgressRequest{}
+	mi := &file_api_proto_agent_v1alpha1_agent_service_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReportProgressRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReportProgressRequest) ProtoMessage() {}
+
+func (x *ReportProgressRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_agent_v1alpha1_agent_service_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReportProgressRequest.ProtoReflect.Descriptor instead.
+func (*ReportProgressRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_agent_v1alpha1_agent_service_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *ReportProgressRequest) GetTransferId() string {
+	if x != nil {
+		return x.TransferId
+	}
+	return ""
+}
+
+func (x *ReportProgressRequest) GetBytesTransferred() int64 {
+	if x != nil {
+		return x.BytesTransferred
+	}
+	return 0
+}
+
+func (x *ReportProgressRequest) GetBytesTotal() int64 {
+	if x != nil {
+		return x.BytesTotal
+	}
+	return 0
+}
+
+func (x *ReportProgressRequest) GetSpeed() float64 {
+	if x != nil {
+		return x.Speed
+	}
+	return 0
+}
+
+func (x *ReportProgressRequest) GetChunksCompleted() int32 {
+	if x != nil {
+		return x.ChunksCompleted
+	}
+	return 0
+}
+
+func (x *ReportProgressRequest) GetChunksTotal() int32 {
+	if x != nil {
+		return x.ChunksTotal
+	}
+	return 0
+}
+
+func (x *ReportProgressRequest) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *ReportProgressRequest) GetErrorMessage() string {
+	if x != nil {
+		return x.ErrorMessage
+	}
+	return ""
+}
+
+type ReportProgressResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReportProgressResponse) Reset() {
+	*x = ReportProgressResponse{}
+	mi := &file_api_proto_agent_v1alpha1_agent_service_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReportProgressResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReportProgressResponse) ProtoMessage() {}
+
+func (x *ReportProgressResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_agent_v1alpha1_agent_service_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReportProgressResponse.ProtoReflect.Descriptor instead.
+func (*ReportProgressResponse) Descriptor() ([]byte, []int) {
+	return file_api_proto_agent_v1alpha1_agent_service_proto_rawDescGZIP(), []int{11}
+}
+
+type TransferCommand struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	TransferId     string                 `protobuf:"bytes,1,opt,name=transfer_id,json=transferId,proto3" json:"transfer_id,omitempty"`
+	Strategy       string                 `protobuf:"bytes,2,opt,name=strategy,proto3" json:"strategy,omitempty"`
+	SourcePvc      string                 `protobuf:"bytes,3,opt,name=source_pvc,json=sourcePvc,proto3" json:"source_pvc,omitempty"`
+	DestinationPvc string                 `protobuf:"bytes,4,opt,name=destination_pvc,json=destinationPvc,proto3" json:"destination_pvc,omitempty"`
+	Credentials    string                 `protobuf:"bytes,5,opt,name=credentials,proto3" json:"credentials,omitempty"`
+	ChunkSize      int64                  `protobuf:"varint,6,opt,name=chunk_size,json=chunkSize,proto3" json:"chunk_size,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *TransferCommand) Reset() {
+	*x = TransferCommand{}
+	mi := &file_api_proto_agent_v1alpha1_agent_service_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TransferCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TransferCommand) ProtoMessage() {}
+
+func (x *TransferCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_agent_v1alpha1_agent_service_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TransferCommand.ProtoReflect.Descriptor instead.
+func (*TransferCommand) Descriptor() ([]byte, []int) {
+	return file_api_proto_agent_v1alpha1_agent_service_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *TransferCommand) GetTransferId() string {
+	if x != nil {
+		return x.TransferId
+	}
+	return ""
+}
+
+func (x *TransferCommand) GetStrategy() string {
+	if x != nil {
+		return x.Strategy
+	}
+	return ""
+}
+
+func (x *TransferCommand) GetSourcePvc() string {
+	if x != nil {
+		return x.SourcePvc
+	}
+	return ""
+}
+
+func (x *TransferCommand) GetDestinationPvc() string {
+	if x != nil {
+		return x.DestinationPvc
+	}
+	return ""
+}
+
+func (x *TransferCommand) GetCredentials() string {
+	if x != nil {
+		return x.Credentials
+	}
+	return ""
+}
+
+func (x *TransferCommand) GetChunkSize() int64 {
+	if x != nil {
+		return x.ChunkSize
+	}
+	return 0
+}
+
+type CancelCommand struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TransferId    string                 `protobuf:"bytes,1,opt,name=transfer_id,json=transferId,proto3" json:"transfer_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelCommand) Reset() {
+	*x = CancelCommand{}
+	mi := &file_api_proto_agent_v1alpha1_agent_service_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelCommand) ProtoMessage() {}
+
+func (x *CancelCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_agent_v1alpha1_agent_service_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelCommand.ProtoReflect.Descriptor instead.
+func (*CancelCommand) Descriptor() ([]byte, []int) {
+	return file_api_proto_agent_v1alpha1_agent_service_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *CancelCommand) GetTransferId() string {
+	if x != nil {
+		return x.TransferId
+	}
+	return ""
+}
+
+type AgentCommand struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Command:
+	//
+	//	*AgentCommand_Transfer
+	//	*AgentCommand_Cancel
+	Command       isAgentCommand_Command `protobuf_oneof:"command"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AgentCommand) Reset() {
+	*x = AgentCommand{}
+	mi := &file_api_proto_agent_v1alpha1_agent_service_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AgentCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AgentCommand) ProtoMessage() {}
+
+func (x *AgentCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_agent_v1alpha1_agent_service_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AgentCommand.ProtoReflect.Descriptor instead.
+func (*AgentCommand) Descriptor() ([]byte, []int) {
+	return file_api_proto_agent_v1alpha1_agent_service_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *AgentCommand) GetCommand() isAgentCommand_Command {
+	if x != nil {
+		return x.Command
+	}
+	return nil
+}
+
+func (x *AgentCommand) GetTransfer() *TransferCommand {
+	if x != nil {
+		if x, ok := x.Command.(*AgentCommand_Transfer); ok {
+			return x.Transfer
+		}
+	}
+	return nil
+}
+
+func (x *AgentCommand) GetCancel() *CancelCommand {
+	if x != nil {
+		if x, ok := x.Command.(*AgentCommand_Cancel); ok {
+			return x.Cancel
+		}
+	}
+	return nil
+}
+
+type isAgentCommand_Command interface {
+	isAgentCommand_Command()
+}
+
+type AgentCommand_Transfer struct {
+	Transfer *TransferCommand `protobuf:"bytes,1,opt,name=transfer,proto3,oneof"`
+}
+
+type AgentCommand_Cancel struct {
+	Cancel *CancelCommand `protobuf:"bytes,2,opt,name=cancel,proto3,oneof"`
+}
+
+func (*AgentCommand_Transfer) isAgentCommand_Command() {}
+
+func (*AgentCommand_Cancel) isAgentCommand_Command() {}
+
+type StreamCommandsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AgentId       string                 `protobuf:"bytes,1,opt,name=agent_id,json=agentId,proto3" json:"agent_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *StreamCommandsRequest) Reset() {
+	*x = StreamCommandsRequest{}
+	mi := &file_api_proto_agent_v1alpha1_agent_service_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *StreamCommandsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*StreamCommandsRequest) ProtoMessage() {}
+
+func (x *StreamCommandsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_api_proto_agent_v1alpha1_agent_service_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use StreamCommandsRequest.ProtoReflect.Descriptor instead.
+func (*StreamCommandsRequest) Descriptor() ([]byte, []int) {
+	return file_api_proto_agent_v1alpha1_agent_service_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *StreamCommandsRequest) GetAgentId() string {
+	if x != nil {
+		return x.AgentId
+	}
+	return ""
+}
+
 var File_api_proto_agent_v1alpha1_agent_service_proto protoreflect.FileDescriptor
 
 const file_api_proto_agent_v1alpha1_agent_service_proto_rawDesc = "" +
@@ -385,10 +1023,70 @@ const file_api_proto_agent_v1alpha1_agent_service_proto_rawDesc = "" +
 	"\x10HeartbeatRequest\x12\x19\n" +
 	"\bagent_id\x18\x01 \x01(\tR\aagentId\x124\n" +
 	"\x04pvcs\x18\x02 \x03(\v2 .katapult.agent.v1alpha1.PVCInfoR\x04pvcs\"\x13\n" +
-	"\x11HeartbeatResponse2\xd3\x01\n" +
+	"\x11HeartbeatResponse\"\xf7\x02\n" +
+	"\x15CreateTransferRequest\x12%\n" +
+	"\x0esource_cluster\x18\x01 \x01(\tR\rsourceCluster\x12\x1d\n" +
+	"\n" +
+	"source_pvc\x18\x02 \x01(\tR\tsourcePvc\x12/\n" +
+	"\x13destination_cluster\x18\x03 \x01(\tR\x12destinationCluster\x12'\n" +
+	"\x0fdestination_pvc\x18\x04 \x01(\tR\x0edestinationPvc\x120\n" +
+	"\x11strategy_override\x18\x05 \x01(\tH\x00R\x10strategyOverride\x88\x01\x01\x12'\n" +
+	"\x0fallow_overwrite\x18\x06 \x01(\bR\x0eallowOverwrite\x12 \n" +
+	"\tretry_max\x18\a \x01(\x05H\x01R\bretryMax\x88\x01\x01\x12\x1d\n" +
+	"\n" +
+	"created_by\x18\b \x01(\tR\tcreatedByB\x14\n" +
+	"\x12_strategy_overrideB\f\n" +
+	"\n" +
+	"_retry_max\"O\n" +
+	"\x16CreateTransferResponse\x12\x1f\n" +
+	"\vtransfer_id\x18\x01 \x01(\tR\n" +
+	"transferId\x12\x14\n" +
+	"\x05state\x18\x02 \x01(\tR\x05state\"8\n" +
+	"\x15CancelTransferRequest\x12\x1f\n" +
+	"\vtransfer_id\x18\x01 \x01(\tR\n" +
+	"transferId\"O\n" +
+	"\x16CancelTransferResponse\x12\x1f\n" +
+	"\vtransfer_id\x18\x01 \x01(\tR\n" +
+	"transferId\x12\x14\n" +
+	"\x05state\x18\x02 \x01(\tR\x05state\"\xa7\x02\n" +
+	"\x15ReportProgressRequest\x12\x1f\n" +
+	"\vtransfer_id\x18\x01 \x01(\tR\n" +
+	"transferId\x12+\n" +
+	"\x11bytes_transferred\x18\x02 \x01(\x03R\x10bytesTransferred\x12\x1f\n" +
+	"\vbytes_total\x18\x03 \x01(\x03R\n" +
+	"bytesTotal\x12\x14\n" +
+	"\x05speed\x18\x04 \x01(\x01R\x05speed\x12)\n" +
+	"\x10chunks_completed\x18\x05 \x01(\x05R\x0fchunksCompleted\x12!\n" +
+	"\fchunks_total\x18\x06 \x01(\x05R\vchunksTotal\x12\x16\n" +
+	"\x06status\x18\a \x01(\tR\x06status\x12#\n" +
+	"\rerror_message\x18\b \x01(\tR\ferrorMessage\"\x18\n" +
+	"\x16ReportProgressResponse\"\xd7\x01\n" +
+	"\x0fTransferCommand\x12\x1f\n" +
+	"\vtransfer_id\x18\x01 \x01(\tR\n" +
+	"transferId\x12\x1a\n" +
+	"\bstrategy\x18\x02 \x01(\tR\bstrategy\x12\x1d\n" +
+	"\n" +
+	"source_pvc\x18\x03 \x01(\tR\tsourcePvc\x12'\n" +
+	"\x0fdestination_pvc\x18\x04 \x01(\tR\x0edestinationPvc\x12 \n" +
+	"\vcredentials\x18\x05 \x01(\tR\vcredentials\x12\x1d\n" +
+	"\n" +
+	"chunk_size\x18\x06 \x01(\x03R\tchunkSize\"0\n" +
+	"\rCancelCommand\x12\x1f\n" +
+	"\vtransfer_id\x18\x01 \x01(\tR\n" +
+	"transferId\"\xa3\x01\n" +
+	"\fAgentCommand\x12F\n" +
+	"\btransfer\x18\x01 \x01(\v2(.katapult.agent.v1alpha1.TransferCommandH\x00R\btransfer\x12@\n" +
+	"\x06cancel\x18\x02 \x01(\v2&.katapult.agent.v1alpha1.CancelCommandH\x00R\x06cancelB\t\n" +
+	"\acommand\"2\n" +
+	"\x15StreamCommandsRequest\x12\x19\n" +
+	"\bagent_id\x18\x01 \x01(\tR\aagentId2\x97\x05\n" +
 	"\fAgentService\x12_\n" +
 	"\bRegister\x12(.katapult.agent.v1alpha1.RegisterRequest\x1a).katapult.agent.v1alpha1.RegisterResponse\x12b\n" +
-	"\tHeartbeat\x12).katapult.agent.v1alpha1.HeartbeatRequest\x1a*.katapult.agent.v1alpha1.HeartbeatResponseBEZCgithub.com/maxitosh/katapult/api/proto/agent/v1alpha1;agentv1alpha1b\x06proto3"
+	"\tHeartbeat\x12).katapult.agent.v1alpha1.HeartbeatRequest\x1a*.katapult.agent.v1alpha1.HeartbeatResponse\x12q\n" +
+	"\x0eCreateTransfer\x12..katapult.agent.v1alpha1.CreateTransferRequest\x1a/.katapult.agent.v1alpha1.CreateTransferResponse\x12q\n" +
+	"\x0eCancelTransfer\x12..katapult.agent.v1alpha1.CancelTransferRequest\x1a/.katapult.agent.v1alpha1.CancelTransferResponse\x12q\n" +
+	"\x0eReportProgress\x12..katapult.agent.v1alpha1.ReportProgressRequest\x1a/.katapult.agent.v1alpha1.ReportProgressResponse\x12i\n" +
+	"\x0eStreamCommands\x12..katapult.agent.v1alpha1.StreamCommandsRequest\x1a%.katapult.agent.v1alpha1.AgentCommand0\x01BEZCgithub.com/maxitosh/katapult/api/proto/agent/v1alpha1;agentv1alpha1b\x06proto3"
 
 var (
 	file_api_proto_agent_v1alpha1_agent_service_proto_rawDescOnce sync.Once
@@ -402,28 +1100,48 @@ func file_api_proto_agent_v1alpha1_agent_service_proto_rawDescGZIP() []byte {
 	return file_api_proto_agent_v1alpha1_agent_service_proto_rawDescData
 }
 
-var file_api_proto_agent_v1alpha1_agent_service_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_api_proto_agent_v1alpha1_agent_service_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_api_proto_agent_v1alpha1_agent_service_proto_goTypes = []any{
-	(*ToolVersions)(nil),      // 0: katapult.agent.v1alpha1.ToolVersions
-	(*PVCInfo)(nil),           // 1: katapult.agent.v1alpha1.PVCInfo
-	(*RegisterRequest)(nil),   // 2: katapult.agent.v1alpha1.RegisterRequest
-	(*RegisterResponse)(nil),  // 3: katapult.agent.v1alpha1.RegisterResponse
-	(*HeartbeatRequest)(nil),  // 4: katapult.agent.v1alpha1.HeartbeatRequest
-	(*HeartbeatResponse)(nil), // 5: katapult.agent.v1alpha1.HeartbeatResponse
+	(*ToolVersions)(nil),           // 0: katapult.agent.v1alpha1.ToolVersions
+	(*PVCInfo)(nil),                // 1: katapult.agent.v1alpha1.PVCInfo
+	(*RegisterRequest)(nil),        // 2: katapult.agent.v1alpha1.RegisterRequest
+	(*RegisterResponse)(nil),       // 3: katapult.agent.v1alpha1.RegisterResponse
+	(*HeartbeatRequest)(nil),       // 4: katapult.agent.v1alpha1.HeartbeatRequest
+	(*HeartbeatResponse)(nil),      // 5: katapult.agent.v1alpha1.HeartbeatResponse
+	(*CreateTransferRequest)(nil),  // 6: katapult.agent.v1alpha1.CreateTransferRequest
+	(*CreateTransferResponse)(nil), // 7: katapult.agent.v1alpha1.CreateTransferResponse
+	(*CancelTransferRequest)(nil),  // 8: katapult.agent.v1alpha1.CancelTransferRequest
+	(*CancelTransferResponse)(nil), // 9: katapult.agent.v1alpha1.CancelTransferResponse
+	(*ReportProgressRequest)(nil),  // 10: katapult.agent.v1alpha1.ReportProgressRequest
+	(*ReportProgressResponse)(nil), // 11: katapult.agent.v1alpha1.ReportProgressResponse
+	(*TransferCommand)(nil),        // 12: katapult.agent.v1alpha1.TransferCommand
+	(*CancelCommand)(nil),          // 13: katapult.agent.v1alpha1.CancelCommand
+	(*AgentCommand)(nil),           // 14: katapult.agent.v1alpha1.AgentCommand
+	(*StreamCommandsRequest)(nil),  // 15: katapult.agent.v1alpha1.StreamCommandsRequest
 }
 var file_api_proto_agent_v1alpha1_agent_service_proto_depIdxs = []int32{
-	0, // 0: katapult.agent.v1alpha1.RegisterRequest.tools:type_name -> katapult.agent.v1alpha1.ToolVersions
-	1, // 1: katapult.agent.v1alpha1.RegisterRequest.pvcs:type_name -> katapult.agent.v1alpha1.PVCInfo
-	1, // 2: katapult.agent.v1alpha1.HeartbeatRequest.pvcs:type_name -> katapult.agent.v1alpha1.PVCInfo
-	2, // 3: katapult.agent.v1alpha1.AgentService.Register:input_type -> katapult.agent.v1alpha1.RegisterRequest
-	4, // 4: katapult.agent.v1alpha1.AgentService.Heartbeat:input_type -> katapult.agent.v1alpha1.HeartbeatRequest
-	3, // 5: katapult.agent.v1alpha1.AgentService.Register:output_type -> katapult.agent.v1alpha1.RegisterResponse
-	5, // 6: katapult.agent.v1alpha1.AgentService.Heartbeat:output_type -> katapult.agent.v1alpha1.HeartbeatResponse
-	5, // [5:7] is the sub-list for method output_type
-	3, // [3:5] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	0,  // 0: katapult.agent.v1alpha1.RegisterRequest.tools:type_name -> katapult.agent.v1alpha1.ToolVersions
+	1,  // 1: katapult.agent.v1alpha1.RegisterRequest.pvcs:type_name -> katapult.agent.v1alpha1.PVCInfo
+	1,  // 2: katapult.agent.v1alpha1.HeartbeatRequest.pvcs:type_name -> katapult.agent.v1alpha1.PVCInfo
+	12, // 3: katapult.agent.v1alpha1.AgentCommand.transfer:type_name -> katapult.agent.v1alpha1.TransferCommand
+	13, // 4: katapult.agent.v1alpha1.AgentCommand.cancel:type_name -> katapult.agent.v1alpha1.CancelCommand
+	2,  // 5: katapult.agent.v1alpha1.AgentService.Register:input_type -> katapult.agent.v1alpha1.RegisterRequest
+	4,  // 6: katapult.agent.v1alpha1.AgentService.Heartbeat:input_type -> katapult.agent.v1alpha1.HeartbeatRequest
+	6,  // 7: katapult.agent.v1alpha1.AgentService.CreateTransfer:input_type -> katapult.agent.v1alpha1.CreateTransferRequest
+	8,  // 8: katapult.agent.v1alpha1.AgentService.CancelTransfer:input_type -> katapult.agent.v1alpha1.CancelTransferRequest
+	10, // 9: katapult.agent.v1alpha1.AgentService.ReportProgress:input_type -> katapult.agent.v1alpha1.ReportProgressRequest
+	15, // 10: katapult.agent.v1alpha1.AgentService.StreamCommands:input_type -> katapult.agent.v1alpha1.StreamCommandsRequest
+	3,  // 11: katapult.agent.v1alpha1.AgentService.Register:output_type -> katapult.agent.v1alpha1.RegisterResponse
+	5,  // 12: katapult.agent.v1alpha1.AgentService.Heartbeat:output_type -> katapult.agent.v1alpha1.HeartbeatResponse
+	7,  // 13: katapult.agent.v1alpha1.AgentService.CreateTransfer:output_type -> katapult.agent.v1alpha1.CreateTransferResponse
+	9,  // 14: katapult.agent.v1alpha1.AgentService.CancelTransfer:output_type -> katapult.agent.v1alpha1.CancelTransferResponse
+	11, // 15: katapult.agent.v1alpha1.AgentService.ReportProgress:output_type -> katapult.agent.v1alpha1.ReportProgressResponse
+	14, // 16: katapult.agent.v1alpha1.AgentService.StreamCommands:output_type -> katapult.agent.v1alpha1.AgentCommand
+	11, // [11:17] is the sub-list for method output_type
+	5,  // [5:11] is the sub-list for method input_type
+	5,  // [5:5] is the sub-list for extension type_name
+	5,  // [5:5] is the sub-list for extension extendee
+	0,  // [0:5] is the sub-list for field type_name
 }
 
 func init() { file_api_proto_agent_v1alpha1_agent_service_proto_init() }
@@ -431,13 +1149,18 @@ func file_api_proto_agent_v1alpha1_agent_service_proto_init() {
 	if File_api_proto_agent_v1alpha1_agent_service_proto != nil {
 		return
 	}
+	file_api_proto_agent_v1alpha1_agent_service_proto_msgTypes[6].OneofWrappers = []any{}
+	file_api_proto_agent_v1alpha1_agent_service_proto_msgTypes[14].OneofWrappers = []any{
+		(*AgentCommand_Transfer)(nil),
+		(*AgentCommand_Cancel)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_api_proto_agent_v1alpha1_agent_service_proto_rawDesc), len(file_api_proto_agent_v1alpha1_agent_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

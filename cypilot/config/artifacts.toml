@@ -13,6 +13,7 @@ artifacts = [
   { path = "docs/ADR/0003-use-go.md", kind = "ADR" },
   { path = "docs/ADR/0004-grpc-agent-communication.md", kind = "ADR" },
   { path = "docs/feature-agent-system/FEATURE.md", kind = "FEATURE", traceability = "FULL" },
+  { path = "docs/feature-transfer-engine/FEATURE.md", kind = "FEATURE", traceability = "FULL" },
 ]
 codebase = [
   { path = "katapult/", feature = "docs/feature-agent-system/FEATURE.md" },
