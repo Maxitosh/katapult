@@ -159,8 +159,8 @@ func TestE2E_IntraClusterStreamingTransfer(t *testing.T) {
 	// @cpt-begin:cpt-katapult-algo-integration-tests-data-integrity-check:p2:inst-verify-streaming
 	// Uncomment when commander is wired:
 	// state := waitForTransferComplete(t, created.ID, 5*time.Minute)
-	// srcChecksum := computePVCChecksum(t, kubeconfig, namespace, "src-stream")
-	// dstChecksum := computePVCChecksum(t, kubeconfig, namespace, "dst-stream")
+	// srcChecksum := computePVCChecksum(t, namespace, "src-stream")
+	// dstChecksum := computePVCChecksum(t, namespace, "dst-stream")
 	// @cpt-end:cpt-katapult-algo-integration-tests-data-integrity-check:p2:inst-verify-streaming
 }
 
@@ -204,7 +204,7 @@ func TestE2E_CrossClusterS3StagedTransfer(t *testing.T) {
 	// @cpt-begin:cpt-katapult-algo-integration-tests-data-integrity-check:p2:inst-verify-s3
 	// Uncomment when commander is wired:
 	// state := waitForTransferComplete(t, created.ID, 5*time.Minute)
-	// srcChecksum := computePVCChecksum(t, kubeconfig, namespace, "src-s3")
-	// dstChecksum := computePVCChecksum(t, kubeconfig, namespace, "dst-s3")
+	// srcChecksum := computePVCChecksum(t, namespace, "src-s3")
+	// dstChecksum := computePVCChecksum(t, namespace, "dst-s3")
 	// @cpt-end:cpt-katapult-algo-integration-tests-data-integrity-check:p2:inst-verify-s3
 }

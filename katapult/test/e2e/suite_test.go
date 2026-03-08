@@ -8,6 +8,7 @@ package e2e_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -18,12 +19,20 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 var (
 	clusterName = "katapult-e2e-test"
 	kubeconfig  string
 	httpBaseURL string
+	k8sClient   kubernetes.Interface
 )
 
 // TestMain orchestrates the full e2e lifecycle: cluster creation, deployment,
@@ -71,6 +80,17 @@ func runSuite(m *testing.M) int {
 	}
 	tmpKubeconfig.Close()
 	kubeconfig = tmpKubeconfig.Name()
+
+	restCfg, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "e2e: failed to build rest config: %s\n", err)
+		return 1
+	}
+	k8sClient, err = kubernetes.NewForConfig(restCfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "e2e: failed to create k8s client: %s\n", err)
+		return 1
+	}
 	// @cpt-end:cpt-katapult-algo-integration-tests-kind-lifecycle:p2:inst-get-kubeconfig
 
 	// @cpt-begin:cpt-katapult-algo-integration-tests-kind-lifecycle:p2:inst-load-images
@@ -207,78 +227,59 @@ func freePort() (int, error) {
 // computes sha256 checksums of all regular files under /data.
 //
 // @cpt-begin:cpt-katapult-algo-integration-tests-data-integrity-check:p2:inst-compute-checksum
-func computePVCChecksum(t *testing.T, kc, namespace, pvcName string) string {
+func computePVCChecksum(t *testing.T, namespace, pvcName string) string {
 	t.Helper()
 
 	podName := fmt.Sprintf("checksum-%s-%d", pvcName, time.Now().UnixNano()%100000)
-	manifest := fmt.Sprintf(`{
-  "apiVersion": "v1",
-  "kind": "Pod",
-  "metadata": {"name": %q, "namespace": %q},
-  "spec": {
-    "restartPolicy": "Never",
-    "containers": [{
-      "name": "hasher",
-      "image": "busybox:latest",
-      "command": ["sh", "-c", "find /data -type f | sort | xargs sha256sum"],
-      "volumeMounts": [{"name": "vol", "mountPath": "/data"}]
-    }],
-    "volumes": [{
-      "name": "vol",
-      "persistentVolumeClaim": {"claimName": %q}
-    }]
-  }
-}`, podName, namespace, pvcName)
+	ctx := context.Background()
 
-	// Create the pod via stdin.
-	cmd := exec.Command("kubectl", "apply", "-f", "-", "--kubeconfig", kc)
-	cmd.Stdin = strings.NewReader(manifest)
-	applyOut, err := cmd.CombinedOutput()
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      podName,
+			Namespace: namespace,
+		},
+		Spec: corev1.PodSpec{
+			RestartPolicy: corev1.RestartPolicyNever,
+			Containers: []corev1.Container{{
+				Name:    "hasher",
+				Image:   "busybox:latest",
+				Command: []string{"sh", "-c", "find /data -type f | sort | xargs sha256sum"},
+				VolumeMounts: []corev1.VolumeMount{{
+					Name:      "vol",
+					MountPath: "/data",
+				}},
+			}},
+			Volumes: []corev1.Volume{{
+				Name: "vol",
+				VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: pvcName,
+					},
+				},
+			}},
+		},
+	}
+
+	_, err := k8sClient.CoreV1().Pods(namespace).Create(ctx, pod, metav1.CreateOptions{})
 	if err != nil {
-		t.Fatalf("computePVCChecksum: failed to create pod %s: %s\n%s", podName, err, applyOut)
+		t.Fatalf("computePVCChecksum: failed to create pod %s: %s", podName, err)
 	}
 
-	// Wait for pod to complete.
-	waitOut, err := exec.Command(
-		"kubectl", "wait", "--for=condition=Ready", "pod/"+podName,
-		"-n", namespace, "--timeout=60s", "--kubeconfig", kc,
-	).CombinedOutput()
-	if err != nil {
-		// Pod may have already completed; check if it succeeded.
-		_ = waitOut
-	}
-
-	// Wait for completion.
-	deadline := time.Now().Add(120 * time.Second)
-	for time.Now().Before(deadline) {
-		phaseOut, phaseErr := exec.Command(
-			"kubectl", "get", "pod", podName, "-n", namespace,
-			"-o", "jsonpath={.status.phase}", "--kubeconfig", kc,
-		).Output()
-		if phaseErr == nil {
-			phase := strings.TrimSpace(string(phaseOut))
-			if phase == "Succeeded" {
-				break
-			}
-			if phase == "Failed" {
-				t.Fatalf("computePVCChecksum: pod %s failed", podName)
-			}
-		}
-		time.Sleep(2 * time.Second)
-	}
+	waitForPodCompletion(t, namespace, podName, 120*time.Second)
 
 	// Retrieve logs (the checksum output).
-	logsOut, err := exec.Command(
-		"kubectl", "logs", podName, "-n", namespace, "--kubeconfig", kc,
-	).Output()
+	logStream, err := k8sClient.CoreV1().Pods(namespace).GetLogs(podName, &corev1.PodLogOptions{}).Stream(ctx)
 	if err != nil {
 		t.Fatalf("computePVCChecksum: failed to get logs from pod %s: %s", podName, err)
 	}
+	defer logStream.Close()
+	logsOut, err := io.ReadAll(logStream)
+	if err != nil {
+		t.Fatalf("computePVCChecksum: failed to read logs from pod %s: %s", podName, err)
+	}
 
 	// Cleanup the pod.
-	_, _ = exec.Command(
-		"kubectl", "delete", "pod", podName, "-n", namespace, "--kubeconfig", kc,
-	).CombinedOutput()
+	_ = k8sClient.CoreV1().Pods(namespace).Delete(ctx, podName, metav1.DeleteOptions{})
 
 	return strings.TrimSpace(string(logsOut))
 }
@@ -391,26 +392,53 @@ func kubectlExec(t *testing.T, args ...string) string {
 	return strings.TrimSpace(string(out))
 }
 
-// createTestPVC creates a PVC in the given namespace and returns its name.
+// createTestPVC creates a PVC in the given namespace.
 func createTestPVC(t *testing.T, namespace, name, size string) {
 	t.Helper()
 
-	manifest := fmt.Sprintf(`{
-  "apiVersion": "v1",
-  "kind": "PersistentVolumeClaim",
-  "metadata": {"name": %q, "namespace": %q},
-  "spec": {
-    "accessModes": ["ReadWriteOnce"],
-    "resources": {"requests": {"storage": %q}}
-  }
-}`, name, namespace, size)
-
-	cmd := exec.Command("kubectl", "apply", "-f", "-", "--kubeconfig", kubeconfig)
-	cmd.Stdin = strings.NewReader(manifest)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("createTestPVC: failed to create PVC %s: %s\n%s", name, err, out)
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+			Resources: corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse(size),
+				},
+			},
+		},
 	}
+
+	_, err := k8sClient.CoreV1().PersistentVolumeClaims(namespace).Create(context.Background(), pvc, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("createTestPVC: failed to create PVC %s: %s", name, err)
+	}
+}
+
+// waitForPodCompletion polls the pod phase until it reaches Succeeded or Failed,
+// or the timeout expires.
+func waitForPodCompletion(t *testing.T, namespace, podName string, timeout time.Duration) {
+	t.Helper()
+	ctx := context.Background()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		pod, err := k8sClient.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
+		if err != nil {
+			t.Logf("waitForPodCompletion: error getting pod %s: %s", podName, err)
+			time.Sleep(2 * time.Second)
+			continue
+		}
+		switch pod.Status.Phase {
+		case corev1.PodSucceeded:
+			return
+		case corev1.PodFailed:
+			t.Fatalf("waitForPodCompletion: pod %s failed", podName)
+		}
+		time.Sleep(2 * time.Second)
+	}
+	t.Fatalf("waitForPodCompletion: pod %s did not complete within %s", podName, timeout)
 }
 
 // populatePVC creates a pod that writes known test data into the given PVC.
@@ -426,62 +454,54 @@ func populatePVC(t *testing.T, namespace, pvcName string, data map[string]string
 	}
 	shellCmd := strings.Join(cmds, " && ")
 
-	manifest := fmt.Sprintf(`{
-  "apiVersion": "v1",
-  "kind": "Pod",
-  "metadata": {"name": %q, "namespace": %q},
-  "spec": {
-    "restartPolicy": "Never",
-    "containers": [{
-      "name": "writer",
-      "image": "busybox:latest",
-      "command": ["sh", "-c", %q],
-      "volumeMounts": [{"name": "vol", "mountPath": "/data"}]
-    }],
-    "volumes": [{
-      "name": "vol",
-      "persistentVolumeClaim": {"claimName": %q}
-    }]
-  }
-}`, podName, namespace, shellCmd, pvcName)
+	ctx := context.Background()
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      podName,
+			Namespace: namespace,
+		},
+		Spec: corev1.PodSpec{
+			RestartPolicy: corev1.RestartPolicyNever,
+			Containers: []corev1.Container{{
+				Name:    "writer",
+				Image:   "busybox:latest",
+				Command: []string{"sh", "-c", shellCmd},
+				VolumeMounts: []corev1.VolumeMount{{
+					Name:      "vol",
+					MountPath: "/data",
+				}},
+			}},
+			Volumes: []corev1.Volume{{
+				Name: "vol",
+				VolumeSource: corev1.VolumeSource{
+					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+						ClaimName: pvcName,
+					},
+				},
+			}},
+		},
+	}
 
-	cmd := exec.Command("kubectl", "apply", "-f", "-", "--kubeconfig", kubeconfig)
-	cmd.Stdin = strings.NewReader(manifest)
-	out, err := cmd.CombinedOutput()
+	_, err := k8sClient.CoreV1().Pods(namespace).Create(ctx, pod, metav1.CreateOptions{})
 	if err != nil {
-		t.Fatalf("populatePVC: failed to create writer pod: %s\n%s", err, out)
+		t.Fatalf("populatePVC: failed to create writer pod: %s", err)
 	}
 
-	// Wait for pod to complete.
-	deadline := time.Now().Add(120 * time.Second)
-	for time.Now().Before(deadline) {
-		phaseOut, _ := exec.Command(
-			"kubectl", "get", "pod", podName, "-n", namespace,
-			"-o", "jsonpath={.status.phase}", "--kubeconfig", kubeconfig,
-		).Output()
-		phase := strings.TrimSpace(string(phaseOut))
-		if phase == "Succeeded" {
-			break
-		}
-		if phase == "Failed" {
-			t.Fatalf("populatePVC: writer pod %s failed", podName)
-		}
-		time.Sleep(2 * time.Second)
-	}
+	waitForPodCompletion(t, namespace, podName, 120*time.Second)
 
 	// Cleanup.
-	_, _ = exec.Command(
-		"kubectl", "delete", "pod", podName, "-n", namespace, "--kubeconfig", kubeconfig,
-	).CombinedOutput()
+	_ = k8sClient.CoreV1().Pods(namespace).Delete(ctx, podName, metav1.DeleteOptions{})
 }
 
 // createNamespace creates a Kubernetes namespace if it does not exist.
 func createNamespace(t *testing.T, namespace string) {
 	t.Helper()
-	cmd := exec.Command("kubectl", "create", "namespace", namespace, "--kubeconfig", kubeconfig)
-	out, err := cmd.CombinedOutput()
-	if err != nil && !strings.Contains(string(out), "already exists") {
-		t.Fatalf("createNamespace: failed to create namespace %s: %s\n%s", namespace, err, out)
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: namespace},
+	}
+	_, err := k8sClient.CoreV1().Namespaces().Create(context.Background(), ns, metav1.CreateOptions{})
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		t.Fatalf("createNamespace: failed to create namespace %s: %s", namespace, err)
 	}
 }
 
