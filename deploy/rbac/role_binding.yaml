@@ -1,0 +1,25 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: katapult-controller-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: katapult-controller-role
+subjects:
+  - kind: ServiceAccount
+    name: katapult-controller
+    namespace: katapult-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: katapult-agent-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: katapult-agent-role
+subjects:
+  - kind: ServiceAccount
+    name: katapult-agent
+    namespace: katapult-system

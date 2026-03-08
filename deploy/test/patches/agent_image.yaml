@@ -1,0 +1,12 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: katapult-agent
+  namespace: katapult-system
+spec:
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: katapult-agent:test
+          imagePullPolicy: Never

@@ -4,71 +4,21 @@ package postgres
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/maxitosh/katapult/internal/domain"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/modules/postgres"
-	"github.com/testcontainers/testcontainers-go/wait"
+	"github.com/maxitosh/katapult/internal/testutil"
 )
 
 func setupTestDB(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	ctx := context.Background()
-
-	pgContainer, err := postgres.Run(ctx, "postgres:16-alpine",
-		postgres.WithDatabase("katapult_test"),
-		postgres.WithUsername("test"),
-		postgres.WithPassword("test"),
-		testcontainers.WithWaitStrategy(
-			wait.ForLog("database system is ready to accept connections").
-				WithOccurrence(2).
-				WithStartupTimeout(30*time.Second),
-		),
-	)
-	if err != nil {
-		t.Fatalf("starting postgres container: %v", err)
-	}
-	t.Cleanup(func() {
-		if err := pgContainer.Terminate(ctx); err != nil {
-			t.Logf("terminating postgres container: %v", err)
-		}
-	})
-
-	connStr, err := pgContainer.ConnectionString(ctx, "sslmode=disable")
-	if err != nil {
-		t.Fatalf("getting connection string: %v", err)
-	}
-
-	pool, err := pgxpool.New(ctx, connStr)
-	if err != nil {
-		t.Fatalf("creating pool: %v", err)
-	}
-	t.Cleanup(pool.Close)
-
-	// Run migrations in order.
-	migrationsDir := filepath.Join("migrations")
-	migrations := []string{
-		"001_create_agents.up.sql",
-		"002_create_agent_pvcs.up.sql",
-		"003_add_agent_state.up.sql",
-		"004_add_jwt_namespace.up.sql",
-	}
-	for _, m := range migrations {
-		data, err := os.ReadFile(filepath.Join(migrationsDir, m))
-		if err != nil {
-			t.Fatalf("reading migration %s: %v", m, err)
-		}
-		if _, err := pool.Exec(ctx, string(data)); err != nil {
-			t.Fatalf("running migration %s: %v", m, err)
-		}
-	}
-
+	pool, cleanup := testutil.SetupPostgres(t, filepath.Join("migrations"))
+	t.Cleanup(cleanup)
 	return pool
 }
 

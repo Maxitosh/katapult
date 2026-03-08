@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: katapult-api-tokens
+  namespace: katapult-system
+data:
+  tokens.json: |
+    [
+      {
+        "token": "test-operator-token",
+        "subject": "e2e-operator",
+        "role": "operator"
+      },
+      {
+        "token": "test-viewer-token",
+        "subject": "e2e-viewer",
+        "role": "viewer"
+      }
+    ]

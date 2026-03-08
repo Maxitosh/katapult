@@ -10,13 +10,14 @@
   - [2.4 Control Plane API & CLI ⏳ HIGH](#24-control-plane-api-cli-high)
   - [2.5 Observability & Monitoring ⏳ MEDIUM](#25-observability-monitoring-medium)
   - [2.6 Web UI ⏳ MEDIUM](#26-web-ui-medium)
+  - [2.7 Integration Tests ⏳ MEDIUM](#27-integration-tests-medium)
 - [3. Feature Dependencies](#3-feature-dependencies)
 
 <!-- /toc -->
 
 ## 1. Overview
 
-Katapult's DESIGN is decomposed into six features organized around the hub-and-spoke architecture. The decomposition groups design elements by functional cohesion — the agent subsystem (spoke), transfer orchestration (hub core), security layer, API surface, observability, and web UI — while minimizing cross-feature dependencies.
+Katapult's DESIGN is decomposed into seven features organized around the hub-and-spoke architecture. The decomposition groups design elements by functional cohesion — the agent subsystem (spoke), transfer orchestration (hub core), security layer, API surface, observability, web UI, and test infrastructure — while minimizing cross-feature dependencies.
 
 **Decomposition Strategy**:
 - Features grouped by functional cohesion around architectural boundaries
@@ -407,6 +408,63 @@ Katapult's DESIGN is decomposed into six features organized around the hub-and-s
 
   None unique; reads via REST API.
 
+### 2.7 Integration Tests ⏳ MEDIUM
+
+- [ ] `p2` - **ID**: `cpt-katapult-feature-integration-tests`
+
+- **Purpose**: Provide three-tier test infrastructure (controller, component, E2E) that validates Katapult across CRD reconciliation, cross-component interactions, and full transfer workflows in ephemeral environments.
+
+- **Depends On**: `cpt-katapult-feature-agent-system`, `cpt-katapult-feature-transfer-engine`, `cpt-katapult-feature-api-cli`
+
+- **Scope**:
+  - Envtest-based CRD Controller reconciliation tests (VolumeTransfer lifecycle, status updates, finalizers)
+  - Testcontainers-based component integration tests (gRPC registration/heartbeat, API→orchestrator lifecycle, MinIO-backed S3 transfers)
+  - Kind-based E2E tests (full stack deployment via NodePort service access, intra-cluster streaming transfer, cross-cluster S3-staged transfer, cancellation/cleanup, CLI execution)
+  - Build tag separation (`//go:build integration`, `//go:build e2e`)
+  - Shared test helpers (fixture builders, assertion utilities, container lifecycle)
+
+- **Out of scope**:
+  - Performance/load testing
+  - Chaos engineering / fault injection framework
+  - UI end-to-end testing (Cypress/Playwright)
+
+- **Requirements Covered**:
+
+  - [ ] `p1` - `cpt-katapult-fr-controller-integration-tests`
+  - [ ] `p1` - `cpt-katapult-fr-component-integration-tests`
+  - [ ] `p2` - `cpt-katapult-fr-e2e-tests`
+
+- **Design Principles Covered**:
+
+  None unique to this feature.
+
+- **Design Constraints Covered**:
+
+  None unique to this feature.
+
+- **Domain Model Entities**:
+  - Transfer (test fixtures)
+  - Agent (test fixtures)
+
+- **Design Components**:
+
+  - [ ] `p2` - `cpt-katapult-component-test-harness`
+
+- **API**:
+  - Validates all existing API endpoints and gRPC services (no new endpoints)
+
+- **Sequences**:
+
+  None unique; validates existing sequences (`cpt-katapult-seq-intra-transfer`, `cpt-katapult-seq-cross-transfer`, `cpt-katapult-seq-agent-registration`).
+
+- **Data**:
+
+  None unique; tests create and verify data in existing tables via test fixtures.
+
+- **NFR Covered**:
+
+  - [ ] `p2` - `cpt-katapult-nfr-test-execution-time`
+
 ---
 
 ## 3. Feature Dependencies
@@ -419,7 +477,9 @@ cpt-katapult-feature-agent-system
     │       ├─→ cpt-katapult-feature-observability ─┐
     │       │                                        ├─→ cpt-katapult-feature-web-ui
     │       └─→ cpt-katapult-feature-api-cli ───────┘
-    │
+    │               ↓
+    │               └─→ cpt-katapult-feature-integration-tests
+    │                       ↑               ↑
     └─→ cpt-katapult-feature-security ─→ cpt-katapult-feature-api-cli
 ```
 
@@ -434,3 +494,4 @@ cpt-katapult-feature-agent-system
 - `cpt-katapult-feature-web-ui` requires `cpt-katapult-feature-observability`: the UI displays real-time progress and transfer history
 - `cpt-katapult-feature-transfer-engine` and `cpt-katapult-feature-security` are independent of each other and can be developed in parallel after Agent System
 - `cpt-katapult-feature-observability` and `cpt-katapult-feature-api-cli` can be developed in parallel after Transfer Engine (API also needs Security)
+- `cpt-katapult-feature-integration-tests` requires `cpt-katapult-feature-agent-system`, `cpt-katapult-feature-transfer-engine`, and `cpt-katapult-feature-api-cli`: tests validate agent registration, transfer lifecycle, CRD reconciliation, and API endpoints — all three features must exist to test against

@@ -58,6 +58,11 @@
       - [Responsibility scope](#responsibility-scope-6)
       - [Responsibility boundaries](#responsibility-boundaries-6)
       - [Related components (by ID)](#related-components-by-id-6)
+    - [Test Harness](#test-harness)
+      - [Why this component exists](#why-this-component-exists-7)
+      - [Responsibility scope](#responsibility-scope-7)
+      - [Responsibility boundaries](#responsibility-boundaries-7)
+      - [Related components (by ID)](#related-components-by-id-7)
   - [3.3 API Contracts](#33-api-contracts)
   - [3.4 Internal Dependencies](#34-internal-dependencies)
   - [3.5 External Dependencies](#35-external-dependencies)
@@ -65,6 +70,8 @@
     - [Kubernetes API](#kubernetes-api)
     - [PostgreSQL](#postgresql)
     - [Prometheus](#prometheus)
+    - [controller-runtime/envtest](#controller-runtimeenvtest)
+    - [Kind](#kind)
   - [3.6 Interactions & Sequences](#36-interactions-sequences)
     - [Intra-Cluster Streaming Transfer](#intra-cluster-streaming-transfer)
     - [Cross-Cluster S3-Staged Transfer](#cross-cluster-s3-staged-transfer)
@@ -131,6 +138,9 @@ The architecture follows three core tenets: agents are autonomous executors (tra
 | `cpt-katapult-fr-transfer-autonomy` | Once data path is established, agents operate independently; control plane outage does not interrupt active transfers |
 | `cpt-katapult-fr-crd` | CRD Controller (Kubebuilder) reconciles VolumeTransfer CRs; status subresource reflects transfer state |
 | `cpt-katapult-fr-documentation` | CLI embeds help text; API documented via OpenAPI spec; deployment guide and onboarding guide as Markdown |
+| `cpt-katapult-fr-controller-integration-tests` | Test Harness provides envtest-based controller test suite; CRD Controller component testable via `controller-runtime/pkg/envtest` with local etcd + API server |
+| `cpt-katapult-fr-component-integration-tests` | Test Harness provides testcontainers-based component test suite; cross-component interactions validated via real PostgreSQL, MinIO, and gRPC servers in containers |
+| `cpt-katapult-fr-e2e-tests` | Test Harness provides Kind-based E2E test suite; full Katapult stack deployed to ephemeral clusters with real PVC transfers and data integrity verification |
 
 #### NFR Allocation
 
@@ -143,6 +153,7 @@ The architecture follows three core tenets: agents are autonomous executors (tra
 | `cpt-katapult-nfr-progress-latency` | ≤5 sec agent → UI | `cpt-katapult-component-api-server` | gRPC streaming from agent; SSE/WebSocket push to UI; no polling | Measure latency from agent progress report to UI render |
 | `cpt-katapult-nfr-cp-availability` | Best-effort single replica | `cpt-katapult-component-api-server` | Single Deployment replica; active transfers continue during downtime per agent autonomy | Simulate control plane restart during active transfer |
 | `cpt-katapult-nfr-cp-recovery` | RTO <30 min; agent registry auto-rebuilds | `cpt-katapult-component-agent-registry` | PostgreSQL for durable state; agents re-register on reconnect; control plane stateless restart | Destroy control plane PV, redeploy, measure time to operational |
+| `cpt-katapult-nfr-test-execution-time` | Test execution time bounds per tier | `cpt-katapult-component-test-harness` | Three-tier test architecture with build tag separation; envtest for fast controller tests, testcontainers for component tests, Kind for E2E | CI pipeline measures wall-clock per tier; fail if thresholds exceeded |
 
 ### 1.3 Architecture Layers
 
@@ -564,6 +575,35 @@ Provides a guided, browser-based interface for support engineers who are not Kub
 
 - `cpt-katapult-component-api-server` — sole backend; all data fetched via REST, progress via SSE/WebSocket
 
+#### Test Harness
+
+- [ ] `p2` - **ID**: `cpt-katapult-component-test-harness`
+
+##### Why this component exists
+
+Provides reusable test infrastructure for validating Katapult across three tiers (controller, component, E2E) without requiring shared or long-lived test clusters. Ensures all PRD testing requirements (`cpt-katapult-fr-controller-integration-tests`, `cpt-katapult-fr-component-integration-tests`, `cpt-katapult-fr-e2e-tests`) are met with reproducible, isolated test environments.
+
+##### Responsibility scope
+
+- Envtest environment setup for CRD Controller reconciliation tests (local etcd + API server, CRD installation, VolumeTransfer status assertion helpers)
+- Testcontainers orchestration for component integration tests (PostgreSQL, MinIO, gRPC server/client setup, test fixture seeding)
+- Kind cluster lifecycle for E2E tests (cluster creation/teardown, Katapult deployment via NodePort service access, PVC provisioning with local-path provisioner, data integrity checksum verification)
+- Build tag separation: `//go:build integration` (tier 2), `//go:build e2e` (tier 3)
+- Shared test helpers: fixture builders, Gomega `NewWithT(t)` async assertions, standardized polling constants, `GenerateName` namespace isolation, container lifecycle management
+
+##### Responsibility boundaries
+
+- Does not contain business logic or production code
+- Does not define transfer strategies or domain models
+- Does not replace unit tests (unit tests use existing `testutil.MemRepo` pattern)
+
+##### Related components (by ID)
+
+- `cpt-katapult-component-crd-controller` — primary target of envtest-based controller tests
+- `cpt-katapult-component-api-server` — validated via component integration tests (REST/gRPC)
+- `cpt-katapult-component-agent-runtime` — validated via E2E tests (full transfer path)
+- `cpt-katapult-component-transfer-orchestrator` — validated via component and E2E tests
+
 ### 3.3 API Contracts
 
 - [ ] `p1` - **ID**: `cpt-katapult-interface-control-plane-api`
@@ -657,6 +697,18 @@ Provides a guided, browser-based interface for support engineers who are not Kub
 | Dependency | Interface Used | Purpose |
 |-----------|---------------|---------|
 | API Server, Agent Runtime | prometheus/client_golang | Expose `/metrics` for transfer throughput, duration, success/failure rates, agent health |
+
+#### controller-runtime/envtest
+
+| Dependency | Interface Used | Purpose |
+|-----------|---------------|---------|
+| Test Harness (controller tests) | `envtest.Environment` (Start/Stop local etcd + API server) | Run CRD Controller reconciliation tests without a real cluster |
+
+#### Kind
+
+| Dependency | Interface Used | Purpose |
+|-----------|---------------|---------|
+| Test Harness (E2E tests) | `sigs.k8s.io/kind` Go API or CLI (`kind create cluster`) | Create/destroy ephemeral Kubernetes clusters for E2E tests |
 
 ### 3.6 Interactions & Sequences
 
@@ -932,12 +984,12 @@ The system handles volumes ranging from 200 GiB to 15 TB across 10 globally dist
 - **Data Architecture (DATA)**: Addressed via Database Schemas section (Section 3.7) with four tables, primary keys, constraints, and indexes. Data partitioning, sharding, and archival are not applicable for v1 — single PostgreSQL instance handles all state for 10 clusters. Data integrity is enforced via PostgreSQL constraints and foreign keys.
 - **Integration Architecture (INT)**: Addressed via External Dependencies (Section 3.5: S3, Kubernetes API, PostgreSQL, Prometheus) and API Contracts (Section 3.3: REST, gRPC, CRD). Integration patterns are synchronous (REST/gRPC) and event-driven (gRPC streaming for progress). API versioning uses `v1alpha1` stability marker.
 - **Business Alignment (BIZ)**: Addressed via Functional Drivers table (Section 1.2) which maps all 29 PRD functional requirements to design responses, and NFR Allocation table which maps all 7 NFRs to components with verification approaches.
+- **Testing Architecture (TEST)**: Addressed via the Test Harness component (Section 3.2: `cpt-katapult-component-test-harness`) which provides three-tier test infrastructure: envtest for CRD Controller (tier 1), testcontainers for cross-component integration (tier 2), and Kind clusters for E2E (tier 3). Build tag separation (`integration`, `e2e`) ensures test tiers run independently. Unit tests continue to use `testutil.MemRepo` as documented in Internal Dependencies.
 
 **Not applicable sections (continued)**:
 
 - **Operations Architecture (OPS)**: Not applicable as a standalone section for v1 — deployment topology is a single Kubernetes Deployment (control plane) and DaemonSet (agents) with no multi-environment promotion or IaC complexity. Observability is addressed via Prometheus metrics and structured JSON logging (see `cpt-katapult-fr-metrics-logging` in Section 1.2 and Prometheus external dependency in Section 3.5). Deployment details will be specified in the Helm chart and deployment guide, not in the architecture design.
 - **Maintainability (MAINT)**: Not applicable as a standalone section — code organization follows standard Go project layout with domain-driven boundaries matching the component model (Section 3.2). Dependency injection via Go interfaces documented in Internal Dependencies (Section 3.4). Technical debt management deferred to post-v1.
-- **Testing Architecture (TEST)**: Not applicable as a standalone section for v1 — testing strategy will be defined in the DECOMPOSITION and individual FEATURE specs. Testability is inherent in the component model: domain components communicate via Go interfaces (Section 3.4), enabling unit testing with mock implementations. Integration and E2E test approaches will be specified per feature.
 
 ## 5. Traceability
 

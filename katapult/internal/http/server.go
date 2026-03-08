@@ -106,6 +106,12 @@ func (s *Server) Handler(validator TokenValidator) http.Handler {
 	// @cpt-flow:cpt-katapult-flow-observability-stream-progress:p1
 	mux.Handle("GET /api/v1alpha1/transfers/{id}/progress", auth(viewer(http.HandlerFunc(s.handleStreamProgress))))
 
+	// Health check (no auth, used by Kubernetes readiness/liveness probes).
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	})
+
 	// @cpt-begin:cpt-katapult-flow-observability-scrape-metrics:p2:inst-prom-scrape
 	// Prometheus metrics (no auth, cluster-internal)
 	if s.metricsHandler != nil {
