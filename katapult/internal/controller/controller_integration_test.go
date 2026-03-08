@@ -230,8 +230,8 @@ func TestReconcile_ExistingTransfer_UpdatesStatus(t *testing.T) {
 		g.Expect(vt.Status.Phase).To(gomega.Equal(string(domain.TransferStateTransferring)))
 		g.Expect(vt.Status.BytesTransferred).To(gomega.Equal(int64(5000)))
 		g.Expect(vt.Status.BytesTotal).To(gomega.Equal(int64(10000)))
-		g.Expect(vt.Status.ChunksCompleted).To(gomega.Equal(int32(2)))
-		g.Expect(vt.Status.ChunksTotal).To(gomega.Equal(int32(4)))
+		g.Expect(vt.Status.ChunksCompleted).To(gomega.Equal(2))
+		g.Expect(vt.Status.ChunksTotal).To(gomega.Equal(4))
 	}, testutil.ShortTimeout, testutil.DefaultPollingInterval).Should(gomega.Succeed())
 }
 
@@ -309,7 +309,7 @@ func TestReconcile_CompletedTransfer_SetsReadyCondition(t *testing.T) {
 	g.Eventually(func(g gomega.Gomega) {
 		var vt v1alpha1.VolumeTransfer
 		g.Expect(k8sClient.Get(context.Background(), key, &vt)).To(gomega.Succeed())
-		testutil.AssertCondition(t, vt.Status.Conditions, "Ready", metav1.ConditionTrue, "Completed")
+		testutil.ExpectCondition(g, vt.Status.Conditions, "Ready", metav1.ConditionTrue, "Completed")
 	}, testutil.ShortTimeout, testutil.DefaultPollingInterval).Should(gomega.Succeed())
 }
 
@@ -462,7 +462,7 @@ func TestReconcile_CreateFails_SetsFailedCondition(t *testing.T) {
 	g.Eventually(func(g gomega.Gomega) {
 		var vt v1alpha1.VolumeTransfer
 		g.Expect(k8sClient.Get(context.Background(), key, &vt)).To(gomega.Succeed())
-		testutil.AssertCondition(t, vt.Status.Conditions, "Ready", metav1.ConditionFalse, "CreateFailed")
+		testutil.ExpectCondition(g, vt.Status.Conditions, "Ready", metav1.ConditionFalse, "CreateFailed")
 	}, testutil.ShortTimeout, testutil.DefaultPollingInterval).Should(gomega.Succeed())
 }
 

@@ -3,6 +3,7 @@ package testutil
 import (
 	"testing"
 
+	"github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/maxitosh/katapult/internal/domain"
@@ -28,6 +29,21 @@ func AssertCondition(t *testing.T, conditions []metav1.Condition, condType strin
 		}
 	}
 	t.Fatalf("condition %q not found in %d conditions", condType, len(conditions))
+}
+
+// ExpectCondition is a gomega-compatible version of AssertCondition, safe to use
+// inside gomega.Eventually callbacks where t.Fatalf would abort the test prematurely.
+func ExpectCondition(g gomega.Gomega, conditions []metav1.Condition, condType string, status metav1.ConditionStatus, reason string) {
+	var found bool
+	for _, c := range conditions {
+		if c.Type == condType {
+			found = true
+			g.Expect(c.Status).To(gomega.Equal(status), "condition %q status", condType)
+			g.Expect(c.Reason).To(gomega.Equal(reason), "condition %q reason", condType)
+			break
+		}
+	}
+	g.Expect(found).To(gomega.BeTrue(), "condition %q not found in %d conditions", condType, len(conditions))
 }
 
 // AssertTransferState verifies that a transfer is in the expected state.
