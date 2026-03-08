@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -141,24 +142,41 @@ func runSuite(m *testing.M) int {
 
 	// @cpt-begin:cpt-katapult-algo-integration-tests-kind-lifecycle:p2:inst-wait-ready
 	fmt.Println("e2e: waiting for deployments to become ready")
-	out, err = exec.Command(
-		"kubectl", "wait", "--for=condition=available",
-		"deployment/katapult-controlplane", "-n", "katapult-system",
-		"--timeout=120s", "--kubeconfig", kubeconfig,
-	).CombinedOutput()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "e2e: controlplane not ready: %s\n%s\n", err, out)
-		return 1
-	}
+	{
+		ctx := context.Background()
+		deadline := time.Now().Add(120 * time.Second)
+		poll := 2 * time.Second
 
-	out, err = exec.Command(
-		"kubectl", "rollout", "status",
-		"daemonset/katapult-agent", "-n", "katapult-system",
-		"--timeout=120s", "--kubeconfig", kubeconfig,
-	).CombinedOutput()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "e2e: agent daemonset not ready: %s\n%s\n", err, out)
-		return 1
+		// Wait for controlplane Deployment to become Available.
+		for {
+			dep, getErr := k8sClient.AppsV1().Deployments("katapult-system").Get(ctx, "katapult-controlplane", metav1.GetOptions{})
+			if getErr == nil {
+				for _, c := range dep.Status.Conditions {
+					if c.Type == appsv1.DeploymentAvailable && c.Status == corev1.ConditionTrue {
+						goto deploymentReady
+					}
+				}
+			}
+			if time.Now().After(deadline) {
+				fmt.Fprintf(os.Stderr, "e2e: controlplane not ready within timeout\n")
+				return 1
+			}
+			time.Sleep(poll)
+		}
+	deploymentReady:
+
+		// Wait for agent DaemonSet to have all pods ready.
+		for {
+			ds, getErr := k8sClient.AppsV1().DaemonSets("katapult-system").Get(ctx, "katapult-agent", metav1.GetOptions{})
+			if getErr == nil && ds.Status.DesiredNumberScheduled > 0 && ds.Status.NumberReady == ds.Status.DesiredNumberScheduled {
+				break
+			}
+			if time.Now().After(deadline) {
+				fmt.Fprintf(os.Stderr, "e2e: agent daemonset not ready within timeout\n")
+				return 1
+			}
+			time.Sleep(poll)
+		}
 	}
 	// @cpt-end:cpt-katapult-algo-integration-tests-kind-lifecycle:p2:inst-wait-ready
 
