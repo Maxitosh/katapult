@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: katapult-agent
+  namespace: katapult-system
+  labels:
+    app.kubernetes.io/name: katapult-agent
+    app.kubernetes.io/component: agent
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: katapult-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: katapult-agent
+        app.kubernetes.io/component: agent
+    spec:
+      serviceAccountName: katapult-agent
+      containers:
+        - name: agent
+          image: katapult-agent:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: CONTROL_PLANE_ADDR
+              value: "katapult-controlplane:9090"
+          securityContext:
+            privileged: true

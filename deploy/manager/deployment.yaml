@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: katapult-controlplane
+  namespace: katapult-system
+  labels:
+    app.kubernetes.io/name: katapult-controlplane
+    app.kubernetes.io/component: controlplane
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: katapult-controlplane
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: katapult-controlplane
+        app.kubernetes.io/component: controlplane
+    spec:
+      serviceAccountName: katapult-controller
+      containers:
+        - name: controlplane
+          image: katapult-controlplane:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: grpc
+              containerPort: 9090
+              protocol: TCP
+            - name: metrics
+              containerPort: 2112
+              protocol: TCP
+          env:
+            - name: POSTGRES_DSN
+              value: ""
+            - name: LISTEN_HTTP
+              value: ":8080"
+            - name: LISTEN_GRPC
+              value: ":9090"
+            - name: METRICS_ADDR
+              value: ":2112"
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10

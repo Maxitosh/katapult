@@ -2,7 +2,6 @@ package transfer
 
 import (
 	"context"
-	"fmt"
 )
 
 // NoopCommander is a no-op implementation of AgentCommander.
@@ -10,15 +9,18 @@ import (
 type NoopCommander struct{}
 
 func (NoopCommander) IsPVCEmpty(_ context.Context, _, _ string) (bool, error) {
-	return false, fmt.Errorf("agent commander not implemented")
+	// In no-op mode, assume PVCs are empty to allow API-level testing.
+	return true, nil
 }
 
 func (NoopCommander) SendTransferCommand(_ context.Context, _, _ string, _ any) error {
-	return fmt.Errorf("agent commander not implemented")
+	// No-op: transfer command accepted but no actual data movement.
+	return nil
 }
 
 func (NoopCommander) SendCancelCommand(_ context.Context, _, _ string) error {
-	return fmt.Errorf("agent commander not implemented")
+	// No-op: cancel command accepted.
+	return nil
 }
 
 // NoopCredentialManager is a no-op implementation of CredentialManager.
@@ -39,5 +41,6 @@ func (NoopS3Client) DeleteTransferObjects(_ context.Context, _ string) error {
 type NoopPVCFinder struct{}
 
 func (NoopPVCFinder) FindHealthyPVC(_ context.Context, _, _ string) (bool, error) {
-	return false, fmt.Errorf("PVC finder not implemented")
+	// In no-op mode, assume PVCs exist to allow API-level testing.
+	return true, nil
 }

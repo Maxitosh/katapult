@@ -1,0 +1,141 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: katapult-postgres-init
+  namespace: katapult-system
+data:
+  001_schema.sql: |
+    CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+    CREATE TABLE IF NOT EXISTS agents (
+        id              UUID PRIMARY KEY,
+        cluster_id      TEXT NOT NULL,
+        node_name       TEXT NOT NULL,
+        healthy         BOOLEAN NOT NULL DEFAULT TRUE,
+        state           TEXT NOT NULL DEFAULT 'healthy',
+        last_heartbeat  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        tools           JSONB NOT NULL DEFAULT '{}',
+        registered_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        jwt_namespace   TEXT NOT NULL DEFAULT '',
+        CONSTRAINT uq_agents_cluster_node UNIQUE (cluster_id, node_name)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_agents_cluster_id ON agents (cluster_id);
+    CREATE INDEX IF NOT EXISTS idx_agents_state ON agents (state);
+
+    CREATE TABLE IF NOT EXISTS agent_pvcs (
+        agent_id        UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+        pvc_name        TEXT NOT NULL,
+        size_bytes      BIGINT NOT NULL,
+        storage_class   TEXT NOT NULL,
+        node_affinity   TEXT NOT NULL,
+        updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (agent_id, pvc_name)
+    );
+
+    CREATE TABLE IF NOT EXISTS transfers (
+        id                  UUID PRIMARY KEY,
+        source_cluster      TEXT NOT NULL,
+        source_pvc          TEXT NOT NULL,
+        destination_cluster TEXT NOT NULL,
+        destination_pvc     TEXT NOT NULL,
+        strategy            TEXT,
+        state               TEXT NOT NULL DEFAULT 'pending'
+            CHECK (state IN ('pending', 'validating', 'transferring', 'completed', 'failed', 'cancelled')),
+        allow_overwrite     BOOLEAN NOT NULL DEFAULT FALSE,
+        bytes_transferred   BIGINT NOT NULL DEFAULT 0,
+        bytes_total         BIGINT NOT NULL DEFAULT 0,
+        chunks_completed    INT NOT NULL DEFAULT 0,
+        chunks_total        INT NOT NULL DEFAULT 0,
+        error_message       TEXT,
+        retry_count         INT NOT NULL DEFAULT 0,
+        retry_max           INT NOT NULL DEFAULT 3,
+        created_by          TEXT,
+        created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        started_at          TIMESTAMPTZ,
+        completed_at        TIMESTAMPTZ
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_transfers_state ON transfers (state);
+    CREATE INDEX IF NOT EXISTS idx_transfers_source_cluster ON transfers (source_cluster);
+    CREATE INDEX IF NOT EXISTS idx_transfers_dest_cluster ON transfers (destination_cluster);
+    CREATE INDEX IF NOT EXISTS idx_transfers_created_at ON transfers (created_at);
+
+    CREATE TABLE IF NOT EXISTS transfer_events (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        transfer_id UUID NOT NULL REFERENCES transfers(id) ON DELETE CASCADE,
+        event_type  TEXT NOT NULL,
+        message     TEXT,
+        metadata    JSONB NOT NULL DEFAULT '{}',
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_transfer_events_transfer_id ON transfer_events (transfer_id);
+    CREATE INDEX IF NOT EXISTS idx_transfer_events_created_at ON transfer_events (created_at);
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: katapult-system
+  labels:
+    app.kubernetes.io/name: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+          env:
+            - name: POSTGRES_DB
+              value: katapult
+            - name: POSTGRES_USER
+              value: katapult
+            - name: POSTGRES_PASSWORD
+              value: katapult
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+            - name: postgres-init
+              mountPath: /docker-entrypoint-initdb.d
+      volumes:
+        - name: postgres-data
+          emptyDir: {}
+        - name: postgres-init
+          configMap:
+            name: katapult-postgres-init
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: katapult-system
+  labels:
+    app.kubernetes.io/name: postgres
+spec:
+  selector:
+    app.kubernetes.io/name: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+      protocol: TCP

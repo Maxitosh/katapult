@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: katapult-controlplane
+  namespace: katapult-system
+spec:
+  template:
+    spec:
+      containers:
+        - name: controlplane
+          env:
+            - name: DATABASE_URL
+              value: postgres://katapult:katapult@postgres:5432/katapult?sslmode=disable
+            - name: GRPC_LISTEN_ADDR
+              value: :9090
+            - name: HTTP_LISTEN_ADDR
+              value: :8080
+            - name: API_TOKENS_FILE
+              value: /etc/katapult/tokens.json
+          volumeMounts:
+            - name: api-tokens
+              mountPath: /etc/katapult
+              readOnly: true
+      volumes:
+        - name: api-tokens
+          configMap:
+            name: katapult-api-tokens

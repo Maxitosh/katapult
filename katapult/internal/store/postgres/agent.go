@@ -36,6 +36,16 @@ func (r *AgentRepository) UpsertAgent(ctx context.Context, agent *domain.Agent) 
 	}
 	defer tx.Rollback(ctx)
 
+	// Delete existing PVCs by cluster/node before upsert to avoid FK violation
+	// when ON CONFLICT changes the agent ID.
+	_, err = tx.Exec(ctx, `
+		DELETE FROM agent_pvcs WHERE agent_id = (
+			SELECT id FROM agents WHERE cluster_id = $1 AND node_name = $2
+		)`, agent.ClusterID, agent.NodeName)
+	if err != nil {
+		return err
+	}
+
 	_, err = tx.Exec(ctx, `
 		INSERT INTO agents (id, cluster_id, node_name, healthy, state, last_heartbeat, tools, registered_at, jwt_namespace)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -47,11 +57,6 @@ func (r *AgentRepository) UpsertAgent(ctx context.Context, agent *domain.Agent) 
 			tools = EXCLUDED.tools,
 			jwt_namespace = EXCLUDED.jwt_namespace
 	`, agent.ID, agent.ClusterID, agent.NodeName, agent.Healthy, string(agent.State), agent.LastHeartbeat, toolsJSON, agent.RegisteredAt, agent.JWTNamespace)
-	if err != nil {
-		return err
-	}
-
-	_, err = tx.Exec(ctx, `DELETE FROM agent_pvcs WHERE agent_id = $1`, agent.ID)
 	if err != nil {
 		return err
 	}
@@ -75,6 +80,9 @@ func (r *AgentRepository) GetAgentByID(ctx context.Context, id uuid.UUID) (*doma
 	if err != nil {
 		return nil, err
 	}
+	if agent == nil {
+		return nil, nil
+	}
 
 	pvcs, err := r.getPVCs(ctx, agent.ID)
 	if err != nil {
@@ -89,6 +97,9 @@ func (r *AgentRepository) GetAgentByClusterAndNode(ctx context.Context, clusterI
 	agent, err := r.scanAgent(ctx, `SELECT id, cluster_id, node_name, healthy, state, last_heartbeat, tools, registered_at, jwt_namespace FROM agents WHERE cluster_id = $1 AND node_name = $2`, clusterID, nodeName)
 	if err != nil {
 		return nil, err
+	}
+	if agent == nil {
+		return nil, nil
 	}
 
 	pvcs, err := r.getPVCs(ctx, agent.ID)

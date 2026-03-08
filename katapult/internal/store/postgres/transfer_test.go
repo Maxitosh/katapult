@@ -4,35 +4,19 @@ package postgres
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/maxitosh/katapult/internal/domain"
 )
 
 func setupTransferTestDB(t *testing.T) *TransferRepository {
 	t.Helper()
+	// SetupPostgres runs ALL migrations (001-007) via dynamic discovery,
+	// so transfer tables are included automatically.
 	pool := setupTestDB(t)
-
-	ctx := context.Background()
-	migrationsDir := filepath.Join("migrations")
-	transferMigrations := []string{
-		"005_create_transfers.up.sql",
-		"006_create_transfer_events.up.sql",
-	}
-	for _, m := range transferMigrations {
-		data, err := os.ReadFile(filepath.Join(migrationsDir, m))
-		if err != nil {
-			t.Fatalf("reading migration %s: %v", m, err)
-		}
-		if _, err := pool.Exec(ctx, string(data)); err != nil {
-			t.Fatalf("running migration %s: %v", m, err)
-		}
-	}
-
 	return NewTransferRepository(pool)
 }
 
