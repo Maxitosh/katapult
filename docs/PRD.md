@@ -57,6 +57,10 @@
     - [VolumeTransfer CRD](#volumetransfer-crd)
   - [5.8 Documentation](#58-documentation)
     - [Documentation Suite](#documentation-suite)
+  - [5.9 Testing Infrastructure](#59-testing-infrastructure)
+    - [Controller Integration Test Environment](#controller-integration-test-environment)
+    - [Component Integration Test Environment](#component-integration-test-environment)
+    - [End-to-End Test Environment](#end-to-end-test-environment)
 - [6. Non-Functional Requirements](#6-non-functional-requirements)
   - [6.1 NFR Inclusions](#61-nfr-inclusions)
     - [Transfer Throughput — Intra-Cluster](#transfer-throughput-intra-cluster)
@@ -66,6 +70,7 @@
     - [Progress Reporting Latency](#progress-reporting-latency)
     - [Control Plane Availability](#control-plane-availability)
     - [Control Plane State Recovery](#control-plane-state-recovery)
+    - [Test Execution Time](#test-execution-time)
   - [6.2 NFR Exclusions](#62-nfr-exclusions)
 - [7. Public Library Interfaces](#7-public-library-interfaces)
   - [7.1 Public API Surface](#71-public-api-surface)
@@ -217,6 +222,7 @@ This process is repeated up to ~10 times per week, with volumes ranging from 200
 - Automatic cleanup of all transfer-created resources
 - PVC-first addressing with raw path fallback
 - Resume capability for cross-cluster transfers
+- Integration and end-to-end test infrastructure with ephemeral Kind clusters and testcontainers
 
 ### 4.2 Out of Scope
 
@@ -530,6 +536,38 @@ The system **MUST** provide: CLI help text and usage examples built into the `ka
 
 **Actors**: `cpt-katapult-actor-infra-engineer`, `cpt-katapult-actor-support-engineer`
 
+### 5.9 Testing Infrastructure
+
+#### Controller Integration Test Environment
+
+- [ ] `p1` - **ID**: `cpt-katapult-fr-controller-integration-tests`
+
+The system **MUST** provide an integration test environment for the CRD Controller using `controller-runtime/pkg/envtest` (local etcd + API server). Tests **MUST** validate VolumeTransfer CRD reconciliation, status updates, and finalizer behavior without requiring a real Kubernetes cluster.
+
+**Rationale**: CRD Controller is the Kubernetes-native entry point for transfers. Envtest provides fast, reliable controller testing in CI without Docker or cluster provisioning overhead.
+
+**Actors**: `cpt-katapult-actor-control-plane`
+
+#### Component Integration Test Environment
+
+- [ ] `p1` - **ID**: `cpt-katapult-fr-component-integration-tests`
+
+The system **MUST** provide component-level integration tests that validate cross-component interactions using testcontainers: gRPC server ↔ agent client registration and heartbeat flows, API server ↔ transfer orchestrator lifecycle, and S3-staged transfer path via MinIO container. Integration tests **MUST** be separated from unit tests via `//go:build integration` build tag.
+
+**Rationale**: Unit tests with in-memory repositories verify business logic but miss wire-level issues (serialization, connection handling, credential propagation). Component integration tests catch these before E2E.
+
+**Actors**: `cpt-katapult-actor-control-plane`, `cpt-katapult-actor-agent`
+
+#### End-to-End Test Environment
+
+- [ ] `p2` - **ID**: `cpt-katapult-fr-e2e-tests`
+
+The system **MUST** provide end-to-end tests that deploy the full Katapult stack (control plane + agents) into ephemeral Kind clusters and execute real PVC transfers. E2E tests **MUST** cover: intra-cluster streaming transfer with data integrity validation (checksum comparison), cross-cluster S3-staged transfer via MinIO, transfer cancellation and resource cleanup verification, and CLI command execution against a live cluster. E2E tests **MUST** be separated via `//go:build e2e` build tag.
+
+**Rationale**: Katapult orchestrates distributed transfers across nodes and clusters. Only real-cluster tests can validate the full data path (PVC mount → tar+zstd → stunnel → destination) and Kubernetes resource lifecycle.
+
+**Actors**: `cpt-katapult-actor-infra-engineer`
+
 ## 6. Non-Functional Requirements
 
 ### 6.1 NFR Inclusions
@@ -603,6 +641,16 @@ The control plane state (transfer history, agent registry, configuration) **MUST
 **Threshold**: RTO <30 minutes (clean redeploy); RPO best-effort for transfer history; agent registry auto-rebuilds
 
 **Rationale**: Single-replica deployment means control plane data is vulnerable to PV failure. Explicit recovery expectations enable operations planning.
+
+#### Test Execution Time
+
+- [ ] `p2` - **ID**: `cpt-katapult-nfr-test-execution-time`
+
+Unit tests **MUST** complete in under 60 seconds. Integration tests (tier 2, `//go:build integration`) **MUST** complete in under 5 minutes. E2E tests (tier 3, `//go:build e2e`) **MUST** complete in under 15 minutes for core transfer scenarios.
+
+**Threshold**: Unit <60s; Integration <5min; E2E <15min
+
+**Rationale**: Fast feedback loops are critical for developer productivity. Slow tests become ignored tests. Tiered execution times allow CI pipelines to gate merges on fast tests while running E2E on a slower cadence.
 
 ### 6.2 NFR Exclusions
 
@@ -807,6 +855,9 @@ The control plane state (transfer history, agent registry, configuration) **MUST
 - [ ] Worst-case wasted work on failure is bounded: one chunk (cross-cluster) or one pipeline run (intra-cluster)
 - [ ] All transfer-created resources (services, secrets, S3 objects, temp directories) are cleaned up on terminal state
 - [ ] Real-time progress (bytes, speed, ETA, chunk progress) is visible in Web UI and CLI during active transfers
+- [ ] CRD controller reconciliation is validated via envtest without a real cluster
+- [ ] Cross-component interactions (gRPC, API, S3) are validated via testcontainers in CI
+- [ ] A full intra-cluster PVC transfer completes successfully in an ephemeral Kind cluster with data integrity verified
 
 ## 10. Dependencies
 
@@ -818,6 +869,10 @@ The control plane state (transfer history, agent registry, configuration) **MUST
 | zstd | Compression/decompression on agent nodes | p1 |
 | stunnel | TLS tunneling for direct agent-to-agent transfers | p1 (direct movers) |
 | pv-migrate | Immediate stopgap tool to reduce manual effort while Katapult is built | p2 |
+| controller-runtime/envtest | Local etcd + API server for CRD controller integration tests | p1 |
+| testcontainers-go | Container-based integration test infrastructure (PostgreSQL, MinIO) | p1 |
+| Kind | Ephemeral Kubernetes clusters for E2E testing | p2 |
+| MinIO | S3-compatible object store for testing cross-cluster transfers | p2 |
 
 ## 11. Assumptions
 
