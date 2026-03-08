@@ -12,3 +12,4 @@ patches:
   - path: patches/agent_image.yaml
   - path: patches/agent_env.yaml
   - path: patches/web_image.yaml
+  - path: patches/service_nodeport.yaml

@@ -124,8 +124,7 @@ func TestE2E_GetTransfer_ReturnsDetail(t *testing.T) {
 func TestE2E_IntraClusterStreamingTransfer(t *testing.T) {
 	t.Skip("requires wired agent commander for actual data transfer")
 
-	const namespace = "e2e-transfer"
-	createNamespace(t, namespace)
+	namespace := createUniqueNamespace(t, "e2e-transfer")
 
 	createTestPVC(t, namespace, "src-stream", "1Gi")
 	populatePVC(t, namespace, "src-stream", map[string]string{
@@ -169,8 +168,7 @@ func TestE2E_IntraClusterStreamingTransfer(t *testing.T) {
 func TestE2E_CrossClusterS3StagedTransfer(t *testing.T) {
 	t.Skip("requires wired agent commander for actual data transfer")
 
-	const namespace = "e2e-transfer-s3"
-	createNamespace(t, namespace)
+	namespace := createUniqueNamespace(t, "e2e-transfer-s3")
 
 	createTestPVC(t, namespace, "src-s3", "1Gi")
 	populatePVC(t, namespace, "src-s3", map[string]string{

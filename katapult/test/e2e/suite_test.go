@@ -12,7 +12,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -20,12 +19,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/maxitosh/katapult/internal/testutil"
 )
 
 var (
@@ -36,7 +38,7 @@ var (
 )
 
 // TestMain orchestrates the full e2e lifecycle: cluster creation, deployment,
-// port-forwarding, test execution, and teardown.
+// NodePort setup, test execution, and teardown.
 func TestMain(m *testing.M) {
 	code := runSuite(m)
 	os.Exit(code)
@@ -45,7 +47,11 @@ func TestMain(m *testing.M) {
 func runSuite(m *testing.M) int {
 	// @cpt-begin:cpt-katapult-algo-integration-tests-kind-lifecycle:p2:inst-create-cluster
 	fmt.Println("e2e: creating Kind cluster", clusterName)
-	out, err := exec.Command("kind", "create", "cluster", "--name", clusterName, "--wait", "60s").CombinedOutput()
+	out, err := exec.Command("kind", "create", "cluster",
+		"--name", clusterName,
+		"--config", "../../../deploy/test/kind-config.yaml",
+		"--wait", "60s",
+	).CombinedOutput()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "e2e: kind create cluster failed: %s\n%s\n", err, out)
 		return 1
@@ -156,15 +162,10 @@ func runSuite(m *testing.M) int {
 	}
 	// @cpt-end:cpt-katapult-algo-integration-tests-kind-lifecycle:p2:inst-wait-ready
 
-	// @cpt-begin:cpt-katapult-algo-integration-tests-kind-lifecycle:p2:inst-port-forward
-	localPort := portForwardSetup(kubeconfig, "katapult-system", "svc/katapult-controlplane", 8080)
-	if localPort == 0 {
-		fmt.Fprintln(os.Stderr, "e2e: port-forward failed")
-		return 1
-	}
-	httpBaseURL = fmt.Sprintf("http://127.0.0.1:%d", localPort)
+	// @cpt-begin:cpt-katapult-algo-integration-tests-kind-lifecycle:p2:inst-nodeport
+	httpBaseURL = "http://127.0.0.1:30080"
 	fmt.Println("e2e: controlplane available at", httpBaseURL)
-	// @cpt-end:cpt-katapult-algo-integration-tests-kind-lifecycle:p2:inst-port-forward
+	// @cpt-end:cpt-katapult-algo-integration-tests-kind-lifecycle:p2:inst-nodeport
 
 	return m.Run()
 }
@@ -178,51 +179,6 @@ func kustomizeBuildCommand(path string) *exec.Cmd {
 	return exec.Command("kubectl", "kustomize", path)
 }
 
-// portForwardSetup starts kubectl port-forward in the background and returns the
-// local port. Returns 0 on failure.
-func portForwardSetup(kc, namespace, target string, remotePort int) int {
-	localPort, err := freePort()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "e2e: failed to find free port: %s\n", err)
-		return 0
-	}
-
-	cmd := exec.Command(
-		"kubectl", "port-forward", target,
-		fmt.Sprintf("%d:%d", localPort, remotePort),
-		"-n", namespace, "--kubeconfig", kc,
-	)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Start(); err != nil {
-		fmt.Fprintf(os.Stderr, "e2e: port-forward start failed: %s\n", err)
-		return 0
-	}
-
-	// Wait briefly for port-forward to establish.
-	deadline := time.Now().Add(15 * time.Second)
-	for time.Now().Before(deadline) {
-		conn, connErr := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", localPort), 500*time.Millisecond)
-		if connErr == nil {
-			conn.Close()
-			return localPort
-		}
-		time.Sleep(500 * time.Millisecond)
-	}
-	fmt.Fprintln(os.Stderr, "e2e: port-forward did not become ready in time")
-	return 0
-}
-
-// freePort asks the OS for a free TCP port.
-func freePort() (int, error) {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return 0, err
-	}
-	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port, nil
-}
-
 // computePVCChecksum creates a temporary pod that mounts the given PVC and
 // computes sha256 checksums of all regular files under /data.
 //
@@ -230,6 +186,7 @@ func freePort() (int, error) {
 func computePVCChecksum(t *testing.T, namespace, pvcName string) string {
 	t.Helper()
 
+	g := gomega.NewWithT(t)
 	podName := fmt.Sprintf("checksum-%s-%d", pvcName, time.Now().UnixNano()%100000)
 	ctx := context.Background()
 
@@ -265,7 +222,21 @@ func computePVCChecksum(t *testing.T, namespace, pvcName string) string {
 		t.Fatalf("computePVCChecksum: failed to create pod %s: %s", podName, err)
 	}
 
-	waitForPodCompletion(t, namespace, podName, 120*time.Second)
+	// Wait for pod completion using Gomega Eventually.
+	g.Eventually(func(g gomega.Gomega) {
+		pod, err := k8sClient.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+		g.Expect(pod.Status.Phase).To(gomega.BeElementOf(corev1.PodSucceeded, corev1.PodFailed))
+	}, testutil.DefaultTimeout, testutil.DefaultPollingInterval).Should(gomega.Succeed())
+
+	// Verify it succeeded.
+	finalPod, err := k8sClient.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("computePVCChecksum: failed to get pod %s: %s", podName, err)
+	}
+	if finalPod.Status.Phase == corev1.PodFailed {
+		t.Fatalf("computePVCChecksum: pod %s failed", podName)
+	}
 
 	// Retrieve logs (the checksum output).
 	logStream, err := k8sClient.CoreV1().Pods(namespace).GetLogs(podName, &corev1.PodLogOptions{}).Stream(ctx)
@@ -291,32 +262,34 @@ func computePVCChecksum(t *testing.T, namespace, pvcName string) string {
 func waitForTransferComplete(t *testing.T, transferID string, timeout time.Duration) string {
 	t.Helper()
 
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
+	g := gomega.NewWithT(t)
+	var finalState string
+
+	g.Eventually(func() bool {
 		resp := httpDo(t, http.MethodGet, "/api/v1alpha1/transfers/"+transferID, nil)
 		body, err := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		if err != nil {
-			t.Fatalf("waitForTransferComplete: failed to read response: %s", err)
+			return false
 		}
 
 		var result struct {
 			State string `json:"state"`
 		}
 		if err := json.Unmarshal(body, &result); err != nil {
-			t.Fatalf("waitForTransferComplete: failed to parse response: %s\n%s", err, body)
+			return false
 		}
 
 		switch result.State {
 		case "completed", "failed", "cancelled":
-			return result.State
+			finalState = result.State
+			return true
 		}
+		return false
+	}, timeout, testutil.E2EPollingInterval).Should(gomega.BeTrue(),
+		"transfer %s did not reach terminal state within %s", transferID, timeout)
 
-		time.Sleep(3 * time.Second)
-	}
-
-	t.Fatalf("waitForTransferComplete: transfer %s did not reach terminal state within %s", transferID, timeout)
-	return ""
+	return finalState
 }
 
 // httpDo performs an HTTP request against the controlplane with the test auth
@@ -339,44 +312,6 @@ func httpDo(t *testing.T, method, path string, body io.Reader) *http.Response {
 		t.Fatalf("httpDo: request %s %s failed: %s", method, path, err)
 	}
 	return resp
-}
-
-// portForward starts kubectl port-forward in the background and returns the
-// allocated local port.
-func portForward(t *testing.T, kc, namespace, svcName string, remotePort int) int {
-	t.Helper()
-
-	localPort, err := freePort()
-	if err != nil {
-		t.Fatalf("portForward: failed to find free port: %s", err)
-	}
-
-	cmd := exec.Command(
-		"kubectl", "port-forward", "svc/"+svcName,
-		fmt.Sprintf("%d:%d", localPort, remotePort),
-		"-n", namespace, "--kubeconfig", kc,
-	)
-	cmd.Stdout = io.Discard
-	cmd.Stderr = os.Stderr
-	if err := cmd.Start(); err != nil {
-		t.Fatalf("portForward: failed to start: %s", err)
-	}
-	t.Cleanup(func() {
-		_ = cmd.Process.Kill()
-	})
-
-	// Wait for port-forward to be reachable.
-	deadline := time.Now().Add(15 * time.Second)
-	for time.Now().Before(deadline) {
-		conn, connErr := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", localPort), 500*time.Millisecond)
-		if connErr == nil {
-			conn.Close()
-			return localPort
-		}
-		time.Sleep(500 * time.Millisecond)
-	}
-	t.Fatalf("portForward: port-forward to %s/%s did not become ready", namespace, svcName)
-	return 0
 }
 
 // kubectlExec runs kubectl with the suite kubeconfig and returns stdout. It
@@ -421,24 +356,24 @@ func createTestPVC(t *testing.T, namespace, name, size string) {
 // or the timeout expires.
 func waitForPodCompletion(t *testing.T, namespace, podName string, timeout time.Duration) {
 	t.Helper()
+
+	g := gomega.NewWithT(t)
 	ctx := context.Background()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
+
+	g.Eventually(func(g gomega.Gomega) {
 		pod, err := k8sClient.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
-		if err != nil {
-			t.Logf("waitForPodCompletion: error getting pod %s: %s", podName, err)
-			time.Sleep(2 * time.Second)
-			continue
-		}
-		switch pod.Status.Phase {
-		case corev1.PodSucceeded:
-			return
-		case corev1.PodFailed:
-			t.Fatalf("waitForPodCompletion: pod %s failed", podName)
-		}
-		time.Sleep(2 * time.Second)
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+		g.Expect(pod.Status.Phase).To(gomega.BeElementOf(corev1.PodSucceeded, corev1.PodFailed))
+	}, timeout, testutil.DefaultPollingInterval).Should(gomega.Succeed())
+
+	// Verify it didn't fail.
+	pod, err := k8sClient.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("waitForPodCompletion: error getting pod %s: %s", podName, err)
 	}
-	t.Fatalf("waitForPodCompletion: pod %s did not complete within %s", podName, timeout)
+	if pod.Status.Phase == corev1.PodFailed {
+		t.Fatalf("waitForPodCompletion: pod %s failed", podName)
+	}
 }
 
 // populatePVC creates a pod that writes known test data into the given PVC.
@@ -491,6 +426,24 @@ func populatePVC(t *testing.T, namespace, pvcName string, data map[string]string
 
 	// Cleanup.
 	_ = k8sClient.CoreV1().Pods(namespace).Delete(ctx, podName, metav1.DeleteOptions{})
+}
+
+// createUniqueNamespace creates a namespace with GenerateName for parallel-safe e2e tests.
+func createUniqueNamespace(t *testing.T, prefix string) string {
+	t.Helper()
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: prefix + "-",
+		},
+	}
+	created, err := k8sClient.CoreV1().Namespaces().Create(context.Background(), ns, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("createUniqueNamespace: failed to create namespace with prefix %q: %s", prefix, err)
+	}
+	t.Cleanup(func() {
+		_ = k8sClient.CoreV1().Namespaces().Delete(context.Background(), created.Name, metav1.DeleteOptions{})
+	})
+	return created.Name
 }
 
 // createNamespace creates a Kubernetes namespace if it does not exist.

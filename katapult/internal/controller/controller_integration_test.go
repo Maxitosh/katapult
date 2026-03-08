@@ -11,14 +11,13 @@ import (
 	"fmt"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
+	"github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/config"
 
 	v1alpha1 "github.com/maxitosh/katapult/api/v1alpha1"
@@ -77,29 +76,14 @@ func (m *mockOrchestrator) wasCancelCalled() bool {
 	return m.cancelCalled
 }
 
-// pollVolumeTransfer repeatedly fetches the VolumeTransfer CR until the check function
-// returns true or the timeout expires.
-func pollVolumeTransfer(t *testing.T, k8sClient client.Client, key types.NamespacedName, timeout time.Duration, check func(*v1alpha1.VolumeTransfer) bool) *v1alpha1.VolumeTransfer {
-	t.Helper()
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		var vt v1alpha1.VolumeTransfer
-		if err := k8sClient.Get(context.Background(), key, &vt); err == nil {
-			if check(&vt) {
-				return &vt
-			}
-		}
-		time.Sleep(200 * time.Millisecond)
-	}
-	t.Fatalf("timed out waiting for VolumeTransfer %s to satisfy check", key)
-	return nil
-}
-
 // @cpt-begin:cpt-katapult-dod-integration-tests-controller-tests:p2:inst-create-vt-finalizer
 
 func TestReconcile_CreateVT_AddsFinalizerAndCreatesTransfer(t *testing.T) {
 	cfg, k8sClient, cleanup := testutil.SetupEnvtest(t, "../../../deploy/crd/bases")
 	defer cleanup()
+
+	g := gomega.NewWithT(t)
+	ns := testutil.CreateTestNamespace(t, k8sClient, "ctrl-test")
 
 	transferID := uuid.New()
 	mockOrch := &mockOrchestrator{
@@ -132,7 +116,7 @@ func TestReconcile_CreateVT_AddsFinalizerAndCreatesTransfer(t *testing.T) {
 	vt := &v1alpha1.VolumeTransfer{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-vt-create",
-			Namespace: "default",
+			Namespace: ns,
 		},
 		Spec: v1alpha1.VolumeTransferSpec{
 			SourceCluster:      "cluster-a",
@@ -146,40 +130,25 @@ func TestReconcile_CreateVT_AddsFinalizerAndCreatesTransfer(t *testing.T) {
 		t.Fatalf("creating VolumeTransfer: %v", err)
 	}
 
-	key := types.NamespacedName{Name: "test-vt-create", Namespace: "default"}
+	key := types.NamespacedName{Name: "test-vt-create", Namespace: ns}
 
 	// Wait for finalizer to be added.
-	got := pollVolumeTransfer(t, k8sClient, key, 10*time.Second, func(vt *v1alpha1.VolumeTransfer) bool {
-		for _, f := range vt.Finalizers {
-			if f == "katapult.io/transfer-cleanup" {
-				return true
-			}
-		}
-		return false
-	})
-
-	hasFinalizer := false
-	for _, f := range got.Finalizers {
-		if f == "katapult.io/transfer-cleanup" {
-			hasFinalizer = true
-			break
-		}
-	}
-	if !hasFinalizer {
-		t.Fatalf("expected finalizer katapult.io/transfer-cleanup to be present")
-	}
+	g.Eventually(func(g gomega.Gomega) {
+		var vt v1alpha1.VolumeTransfer
+		g.Expect(k8sClient.Get(context.Background(), key, &vt)).To(gomega.Succeed())
+		g.Expect(vt.Finalizers).To(gomega.ContainElement("katapult.io/transfer-cleanup"))
+	}, testutil.ShortTimeout, testutil.DefaultPollingInterval).Should(gomega.Succeed())
 
 	// Wait for orchestrator CreateTransfer to be called and status.transferID set.
-	got = pollVolumeTransfer(t, k8sClient, key, 10*time.Second, func(vt *v1alpha1.VolumeTransfer) bool {
-		return vt.Status.TransferID != ""
-	})
+	g.Eventually(func(g gomega.Gomega) {
+		var vt v1alpha1.VolumeTransfer
+		g.Expect(k8sClient.Get(context.Background(), key, &vt)).To(gomega.Succeed())
+		g.Expect(vt.Status.TransferID).NotTo(gomega.BeEmpty())
+		g.Expect(vt.Status.TransferID).To(gomega.Equal(transferID.String()))
+	}, testutil.ShortTimeout, testutil.DefaultPollingInterval).Should(gomega.Succeed())
 
 	if !mockOrch.wasCreateCalled() {
 		t.Fatalf("expected orchestrator.CreateTransfer to be called")
-	}
-
-	if got.Status.TransferID != transferID.String() {
-		t.Fatalf("expected status.transferID = %q, got %q", transferID.String(), got.Status.TransferID)
 	}
 }
 
@@ -190,6 +159,9 @@ func TestReconcile_CreateVT_AddsFinalizerAndCreatesTransfer(t *testing.T) {
 func TestReconcile_ExistingTransfer_UpdatesStatus(t *testing.T) {
 	cfg, k8sClient, cleanup := testutil.SetupEnvtest(t, "../../../deploy/crd/bases")
 	defer cleanup()
+
+	g := gomega.NewWithT(t)
+	ns := testutil.CreateTestNamespace(t, k8sClient, "ctrl-test")
 
 	transferID := uuid.New()
 	mockOrch := &mockOrchestrator{
@@ -227,7 +199,7 @@ func TestReconcile_ExistingTransfer_UpdatesStatus(t *testing.T) {
 	vt := &v1alpha1.VolumeTransfer{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "test-vt-existing",
-			Namespace:  "default",
+			Namespace:  ns,
 			Finalizers: []string{"katapult.io/transfer-cleanup"},
 		},
 		Spec: v1alpha1.VolumeTransferSpec{
@@ -249,28 +221,18 @@ func TestReconcile_ExistingTransfer_UpdatesStatus(t *testing.T) {
 		t.Fatalf("updating VolumeTransfer status: %v", err)
 	}
 
-	key := types.NamespacedName{Name: "test-vt-existing", Namespace: "default"}
+	key := types.NamespacedName{Name: "test-vt-existing", Namespace: ns}
 
 	// Wait for status to be updated with progress from GetTransfer.
-	got := pollVolumeTransfer(t, k8sClient, key, 10*time.Second, func(vt *v1alpha1.VolumeTransfer) bool {
-		return vt.Status.Phase == string(domain.TransferStateTransferring) && vt.Status.BytesTransferred == 5000
-	})
-
-	if got.Status.Phase != string(domain.TransferStateTransferring) {
-		t.Fatalf("expected status.phase = %q, got %q", domain.TransferStateTransferring, got.Status.Phase)
-	}
-	if got.Status.BytesTransferred != 5000 {
-		t.Fatalf("expected status.bytesTransferred = 5000, got %d", got.Status.BytesTransferred)
-	}
-	if got.Status.BytesTotal != 10000 {
-		t.Fatalf("expected status.bytesTotal = 10000, got %d", got.Status.BytesTotal)
-	}
-	if got.Status.ChunksCompleted != 2 {
-		t.Fatalf("expected status.chunksCompleted = 2, got %d", got.Status.ChunksCompleted)
-	}
-	if got.Status.ChunksTotal != 4 {
-		t.Fatalf("expected status.chunksTotal = 4, got %d", got.Status.ChunksTotal)
-	}
+	g.Eventually(func(g gomega.Gomega) {
+		var vt v1alpha1.VolumeTransfer
+		g.Expect(k8sClient.Get(context.Background(), key, &vt)).To(gomega.Succeed())
+		g.Expect(vt.Status.Phase).To(gomega.Equal(string(domain.TransferStateTransferring)))
+		g.Expect(vt.Status.BytesTransferred).To(gomega.Equal(int64(5000)))
+		g.Expect(vt.Status.BytesTotal).To(gomega.Equal(int64(10000)))
+		g.Expect(vt.Status.ChunksCompleted).To(gomega.Equal(int32(2)))
+		g.Expect(vt.Status.ChunksTotal).To(gomega.Equal(int32(4)))
+	}, testutil.ShortTimeout, testutil.DefaultPollingInterval).Should(gomega.Succeed())
 }
 
 // @cpt-end:cpt-katapult-dod-integration-tests-controller-tests:p2:inst-existing-transfer-updates-status
@@ -280,6 +242,9 @@ func TestReconcile_ExistingTransfer_UpdatesStatus(t *testing.T) {
 func TestReconcile_CompletedTransfer_SetsReadyCondition(t *testing.T) {
 	cfg, k8sClient, cleanup := testutil.SetupEnvtest(t, "../../../deploy/crd/bases")
 	defer cleanup()
+
+	g := gomega.NewWithT(t)
+	ns := testutil.CreateTestNamespace(t, k8sClient, "ctrl-test")
 
 	transferID := uuid.New()
 	mockOrch := &mockOrchestrator{
@@ -316,7 +281,7 @@ func TestReconcile_CompletedTransfer_SetsReadyCondition(t *testing.T) {
 	vt := &v1alpha1.VolumeTransfer{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "test-vt-completed",
-			Namespace:  "default",
+			Namespace:  ns,
 			Finalizers: []string{"katapult.io/transfer-cleanup"},
 		},
 		Spec: v1alpha1.VolumeTransferSpec{
@@ -338,19 +303,14 @@ func TestReconcile_CompletedTransfer_SetsReadyCondition(t *testing.T) {
 		t.Fatalf("updating VolumeTransfer status: %v", err)
 	}
 
-	key := types.NamespacedName{Name: "test-vt-completed", Namespace: "default"}
+	key := types.NamespacedName{Name: "test-vt-completed", Namespace: ns}
 
 	// Wait for Ready=True condition with reason Completed.
-	got := pollVolumeTransfer(t, k8sClient, key, 10*time.Second, func(vt *v1alpha1.VolumeTransfer) bool {
-		for _, c := range vt.Status.Conditions {
-			if c.Type == "Ready" && c.Status == metav1.ConditionTrue && c.Reason == "Completed" {
-				return true
-			}
-		}
-		return false
-	})
-
-	testutil.AssertCondition(t, got.Status.Conditions, "Ready", metav1.ConditionTrue, "Completed")
+	g.Eventually(func(g gomega.Gomega) {
+		var vt v1alpha1.VolumeTransfer
+		g.Expect(k8sClient.Get(context.Background(), key, &vt)).To(gomega.Succeed())
+		testutil.AssertCondition(t, vt.Status.Conditions, "Ready", metav1.ConditionTrue, "Completed")
+	}, testutil.ShortTimeout, testutil.DefaultPollingInterval).Should(gomega.Succeed())
 }
 
 // @cpt-end:cpt-katapult-dod-integration-tests-controller-tests:p2:inst-completed-transfer-ready
@@ -360,6 +320,9 @@ func TestReconcile_CompletedTransfer_SetsReadyCondition(t *testing.T) {
 func TestReconcile_DeleteVT_RunsFinalizerCleanup(t *testing.T) {
 	cfg, k8sClient, cleanup := testutil.SetupEnvtest(t, "../../../deploy/crd/bases")
 	defer cleanup()
+
+	g := gomega.NewWithT(t)
+	ns := testutil.CreateTestNamespace(t, k8sClient, "ctrl-test")
 
 	transferID := uuid.New()
 	mockOrch := &mockOrchestrator{
@@ -398,7 +361,7 @@ func TestReconcile_DeleteVT_RunsFinalizerCleanup(t *testing.T) {
 	vt := &v1alpha1.VolumeTransfer{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-vt-delete",
-			Namespace: "default",
+			Namespace: ns,
 		},
 		Spec: v1alpha1.VolumeTransferSpec{
 			SourceCluster:      "cluster-a",
@@ -412,12 +375,14 @@ func TestReconcile_DeleteVT_RunsFinalizerCleanup(t *testing.T) {
 		t.Fatalf("creating VolumeTransfer: %v", err)
 	}
 
-	key := types.NamespacedName{Name: "test-vt-delete", Namespace: "default"}
+	key := types.NamespacedName{Name: "test-vt-delete", Namespace: ns}
 
 	// Wait for finalizer and transferID to be set by reconciler.
-	pollVolumeTransfer(t, k8sClient, key, 10*time.Second, func(vt *v1alpha1.VolumeTransfer) bool {
-		return vt.Status.TransferID != ""
-	})
+	g.Eventually(func(g gomega.Gomega) {
+		var vt v1alpha1.VolumeTransfer
+		g.Expect(k8sClient.Get(context.Background(), key, &vt)).To(gomega.Succeed())
+		g.Expect(vt.Status.TransferID).NotTo(gomega.BeEmpty())
+	}, testutil.ShortTimeout, testutil.DefaultPollingInterval).Should(gomega.Succeed())
 
 	// Now delete the VolumeTransfer. The finalizer should trigger CancelTransfer.
 	toDelete := &v1alpha1.VolumeTransfer{}
@@ -429,16 +394,10 @@ func TestReconcile_DeleteVT_RunsFinalizerCleanup(t *testing.T) {
 	}
 
 	// Wait for the object to be fully removed (finalizer cleared).
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
+	g.Eventually(func() error {
 		var check v1alpha1.VolumeTransfer
-		err := k8sClient.Get(context.Background(), key, &check)
-		if err != nil {
-			// Object deleted successfully.
-			break
-		}
-		time.Sleep(200 * time.Millisecond)
-	}
+		return k8sClient.Get(context.Background(), key, &check)
+	}, testutil.ShortTimeout, testutil.DefaultPollingInterval).ShouldNot(gomega.Succeed())
 
 	if !mockOrch.wasCancelCalled() {
 		t.Fatalf("expected orchestrator.CancelTransfer to be called during finalizer cleanup")
@@ -452,6 +411,9 @@ func TestReconcile_DeleteVT_RunsFinalizerCleanup(t *testing.T) {
 func TestReconcile_CreateFails_SetsFailedCondition(t *testing.T) {
 	cfg, k8sClient, cleanup := testutil.SetupEnvtest(t, "../../../deploy/crd/bases")
 	defer cleanup()
+
+	g := gomega.NewWithT(t)
+	ns := testutil.CreateTestNamespace(t, k8sClient, "ctrl-test")
 
 	mockOrch := &mockOrchestrator{
 		createErr: fmt.Errorf("validation failed: source PVC not found"),
@@ -480,7 +442,7 @@ func TestReconcile_CreateFails_SetsFailedCondition(t *testing.T) {
 	vt := &v1alpha1.VolumeTransfer{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-vt-create-fail",
-			Namespace: "default",
+			Namespace: ns,
 		},
 		Spec: v1alpha1.VolumeTransferSpec{
 			SourceCluster:      "cluster-a",
@@ -494,19 +456,14 @@ func TestReconcile_CreateFails_SetsFailedCondition(t *testing.T) {
 		t.Fatalf("creating VolumeTransfer: %v", err)
 	}
 
-	key := types.NamespacedName{Name: "test-vt-create-fail", Namespace: "default"}
+	key := types.NamespacedName{Name: "test-vt-create-fail", Namespace: ns}
 
 	// Wait for the Ready=False condition with reason CreateFailed.
-	got := pollVolumeTransfer(t, k8sClient, key, 10*time.Second, func(vt *v1alpha1.VolumeTransfer) bool {
-		for _, c := range vt.Status.Conditions {
-			if c.Type == "Ready" && c.Status == metav1.ConditionFalse && c.Reason == "CreateFailed" {
-				return true
-			}
-		}
-		return false
-	})
-
-	testutil.AssertCondition(t, got.Status.Conditions, "Ready", metav1.ConditionFalse, "CreateFailed")
+	g.Eventually(func(g gomega.Gomega) {
+		var vt v1alpha1.VolumeTransfer
+		g.Expect(k8sClient.Get(context.Background(), key, &vt)).To(gomega.Succeed())
+		testutil.AssertCondition(t, vt.Status.Conditions, "Ready", metav1.ConditionFalse, "CreateFailed")
+	}, testutil.ShortTimeout, testutil.DefaultPollingInterval).Should(gomega.Succeed())
 }
 
 // @cpt-end:cpt-katapult-dod-integration-tests-controller-tests:p2:inst-create-fails-condition

@@ -419,7 +419,7 @@ Katapult's DESIGN is decomposed into seven features organized around the hub-and
 - **Scope**:
   - Envtest-based CRD Controller reconciliation tests (VolumeTransfer lifecycle, status updates, finalizers)
   - Testcontainers-based component integration tests (gRPC registration/heartbeat, API→orchestrator lifecycle, MinIO-backed S3 transfers)
-  - Kind-based E2E tests (full stack deployment, intra-cluster streaming transfer, cross-cluster S3-staged transfer, cancellation/cleanup, CLI execution)
+  - Kind-based E2E tests (full stack deployment via NodePort service access, intra-cluster streaming transfer, cross-cluster S3-staged transfer, cancellation/cleanup, CLI execution)
   - Build tag separation (`//go:build integration`, `//go:build e2e`)
   - Shared test helpers (fixture builders, assertion utilities, container lifecycle)
 

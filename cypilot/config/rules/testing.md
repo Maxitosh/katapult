@@ -78,8 +78,19 @@ Evidence: `store/postgres/agent_test.go` — `postgres.RunContainer()`, migratio
 
 ## Assertions
 
-### Standard Library Only
+### Assertion Libraries
 
-Use `testing.T` methods (`t.Errorf`, `t.Fatalf`, `t.Helper()`) for assertions. No third-party assertion libraries.
+Use `testing.T` methods (`t.Errorf`, `t.Fatalf`, `t.Helper()`) as the primary assertion approach for unit tests and synchronous assertions. All test files use `if got != want { t.Errorf(...) }` pattern.
 
-Evidence: all test files use `if got != want { t.Errorf(...) }` pattern
+For async assertions in integration and e2e tests, use Gomega via `gomega.NewWithT(t)` — this bridges to `testing.T` without requiring Ginkgo. Use `Eventually` for polling assertions and `Consistently` for stability checks.
+
+Evidence: controller integration tests use `gomega.NewWithT(t)` with `Eventually` for reconciliation polling; e2e tests use `Eventually` for transfer completion and pod readiness waits.
+
+### Polling Constants
+
+Use standardized polling constants from `internal/testutil/polling.go` instead of hardcoded durations:
+
+- `DefaultTimeout` (30s) / `DefaultPollingInterval` (250ms) — envtest controller reconciliation
+- `ShortTimeout` (10s) — quick assertions (finalizer, condition checks)
+- `E2ETimeout` (5m) / `E2EPollingInterval` (3s) — e2e transfer completion
+- `PortForwardTimeout` (15s) — port-forward/nodeport readiness

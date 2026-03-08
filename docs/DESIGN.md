@@ -587,9 +587,9 @@ Provides reusable test infrastructure for validating Katapult across three tiers
 
 - Envtest environment setup for CRD Controller reconciliation tests (local etcd + API server, CRD installation, VolumeTransfer status assertion helpers)
 - Testcontainers orchestration for component integration tests (PostgreSQL, MinIO, gRPC server/client setup, test fixture seeding)
-- Kind cluster lifecycle for E2E tests (cluster creation/teardown, Katapult deployment, PVC provisioning with local-path provisioner, data integrity checksum verification)
+- Kind cluster lifecycle for E2E tests (cluster creation/teardown, Katapult deployment via NodePort service access, PVC provisioning with local-path provisioner, data integrity checksum verification)
 - Build tag separation: `//go:build integration` (tier 2), `//go:build e2e` (tier 3)
-- Shared test helpers: fixture builders, assertion utilities, container lifecycle management
+- Shared test helpers: fixture builders, Gomega `NewWithT(t)` async assertions, standardized polling constants, `GenerateName` namespace isolation, container lifecycle management
 
 ##### Responsibility boundaries
 
