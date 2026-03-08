@@ -2,11 +2,12 @@ package testutil
 
 import (
 	"context"
+	"sort"
 	"sync"
 	"time"
 
-	"github.com/maxitosh/katapult/internal/domain"
 	"github.com/google/uuid"
+	"github.com/maxitosh/katapult/internal/domain"
 )
 
 // MemRepo is an in-memory AgentRepository for unit testing.
@@ -106,4 +107,62 @@ func (m *MemRepo) MarkDisconnected(_ context.Context, cutoff time.Time) (int, er
 		}
 	}
 	return count, nil
+}
+
+func (m *MemRepo) ListAgents(_ context.Context, filter domain.AgentFilter) ([]domain.Agent, int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var all []domain.Agent
+	for _, a := range m.Agents {
+		if filter.ClusterID != nil && a.ClusterID != *filter.ClusterID {
+			continue
+		}
+		if filter.State != nil && a.State != *filter.State {
+			continue
+		}
+		cp := *a
+		all = append(all, cp)
+	}
+
+	sort.Slice(all, func(i, j int) bool {
+		if all[i].ClusterID != all[j].ClusterID {
+			return all[i].ClusterID < all[j].ClusterID
+		}
+		return all[i].NodeName < all[j].NodeName
+	})
+
+	total := len(all)
+	if filter.Offset > 0 && filter.Offset < len(all) {
+		all = all[filter.Offset:]
+	} else if filter.Offset >= len(all) {
+		all = nil
+	}
+
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit < len(all) {
+		all = all[:limit]
+	}
+
+	return all, total, nil
+}
+
+func (m *MemRepo) ListClusters(_ context.Context) ([]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	seen := make(map[string]bool)
+	for _, a := range m.Agents {
+		seen[a.ClusterID] = true
+	}
+
+	var clusters []string
+	for c := range seen {
+		clusters = append(clusters, c)
+	}
+	sort.Strings(clusters)
+	return clusters, nil
 }

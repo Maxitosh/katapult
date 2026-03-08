@@ -93,6 +93,21 @@ func (s *Service) GetAgent(ctx context.Context, agentID uuid.UUID) (*domain.Agen
 	return s.repo.GetAgentByID(ctx, agentID)
 }
 
+// ListAgents returns a filtered list of agents with total count.
+// @cpt-flow:cpt-katapult-flow-api-cli-list-agents:p1
+// @cpt-dod:cpt-katapult-dod-api-cli-rest-agent-endpoints:p1
+func (s *Service) ListAgents(ctx context.Context, filter domain.AgentFilter) ([]domain.Agent, int, error) {
+	// @cpt-begin:cpt-katapult-flow-api-cli-list-agents:p1:inst-delegate-agents
+	return s.repo.ListAgents(ctx, filter)
+	// @cpt-end:cpt-katapult-flow-api-cli-list-agents:p1:inst-delegate-agents
+}
+
+// ListClusters returns all distinct cluster IDs.
+// @cpt-dod:cpt-katapult-dod-api-cli-rest-agent-endpoints:p1
+func (s *Service) ListClusters(ctx context.Context) ([]string, error) {
+	return s.repo.ListClusters(ctx)
+}
+
 // Heartbeat processes a heartbeat from an agent, updating health and PVC inventory.
 // @cpt-flow:cpt-katapult-flow-agent-system-heartbeat:p1
 // @cpt-dod:cpt-katapult-dod-agent-system-heartbeat:p1

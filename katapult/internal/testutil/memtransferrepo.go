@@ -3,6 +3,7 @@ package testutil
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -155,4 +156,42 @@ func (m *MemTransferRepo) GetTransferEvents(_ context.Context, transferID uuid.U
 	result := make([]domain.TransferEvent, len(events))
 	copy(result, events)
 	return result, nil
+}
+
+func (m *MemTransferRepo) ListTransfers(_ context.Context, filter domain.TransferFilter) ([]domain.Transfer, int, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	var all []domain.Transfer
+	for _, t := range m.Transfers {
+		if filter.State != nil && t.State != *filter.State {
+			continue
+		}
+		if filter.Cluster != nil && t.SourceCluster != *filter.Cluster && t.DestinationCluster != *filter.Cluster {
+			continue
+		}
+		cp := *t
+		all = append(all, cp)
+	}
+
+	sort.Slice(all, func(i, j int) bool {
+		return all[i].CreatedAt.After(all[j].CreatedAt)
+	})
+
+	total := len(all)
+	if filter.Offset > 0 && filter.Offset < len(all) {
+		all = all[filter.Offset:]
+	} else if filter.Offset >= len(all) {
+		all = nil
+	}
+
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit < len(all) {
+		all = all[:limit]
+	}
+
+	return all, total, nil
 }

@@ -415,6 +415,30 @@ func (o *Orchestrator) HandleProgress(ctx context.Context, report ProgressReport
 	// @cpt-end:cpt-katapult-flow-transfer-engine-report-progress:p1:inst-return-ack
 }
 
+// GetTransfer retrieves a transfer by ID.
+// @cpt-flow:cpt-katapult-flow-api-cli-get-transfer:p1
+// @cpt-dod:cpt-katapult-dod-api-cli-rest-transfer-endpoints:p1
+func (o *Orchestrator) GetTransfer(ctx context.Context, id uuid.UUID) (*domain.Transfer, error) {
+	// @cpt-begin:cpt-katapult-flow-api-cli-get-transfer:p1:inst-delegate-get
+	return o.repo.GetTransferByID(ctx, id)
+	// @cpt-end:cpt-katapult-flow-api-cli-get-transfer:p1:inst-delegate-get
+}
+
+// ListTransfers returns a filtered list of transfers with total count.
+// @cpt-flow:cpt-katapult-flow-api-cli-list-transfers:p1
+// @cpt-dod:cpt-katapult-dod-api-cli-rest-transfer-endpoints:p1
+func (o *Orchestrator) ListTransfers(ctx context.Context, filter domain.TransferFilter) ([]domain.Transfer, int, error) {
+	// @cpt-begin:cpt-katapult-flow-api-cli-list-transfers:p1:inst-delegate-list
+	return o.repo.ListTransfers(ctx, filter)
+	// @cpt-end:cpt-katapult-flow-api-cli-list-transfers:p1:inst-delegate-list
+}
+
+// GetTransferEvents retrieves all events for a transfer.
+// @cpt-dod:cpt-katapult-dod-api-cli-rest-transfer-endpoints:p1
+func (o *Orchestrator) GetTransferEvents(ctx context.Context, transferID uuid.UUID) ([]domain.TransferEvent, error) {
+	return o.repo.GetTransferEvents(ctx, transferID)
+}
+
 func (o *Orchestrator) createEvent(ctx context.Context, transferID uuid.UUID, eventType, message string, metadata map[string]string) {
 	event := &domain.TransferEvent{
 		ID:         uuid.New(),

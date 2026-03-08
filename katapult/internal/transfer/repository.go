@@ -24,4 +24,5 @@ type TransferRepository interface {
 	IncrementRetryCount(ctx context.Context, id uuid.UUID) error
 	CreateTransferEvent(ctx context.Context, event *domain.TransferEvent) error
 	GetTransferEvents(ctx context.Context, transferID uuid.UUID) ([]domain.TransferEvent, error)
+	ListTransfers(ctx context.Context, filter domain.TransferFilter) ([]domain.Transfer, int, error)
 }

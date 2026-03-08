@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -143,6 +144,91 @@ func (r *TransferRepository) GetTransferEvents(ctx context.Context, transferID u
 		events = append(events, e)
 	}
 	return events, rows.Err()
+}
+
+// ListTransfers returns a filtered, paginated list of transfers with total count.
+// @cpt-flow:cpt-katapult-flow-api-cli-list-transfers:p1
+// @cpt-dod:cpt-katapult-dod-api-cli-rest-transfer-endpoints:p1
+func (r *TransferRepository) ListTransfers(ctx context.Context, filter domain.TransferFilter) ([]domain.Transfer, int, error) {
+	// @cpt-begin:cpt-katapult-flow-api-cli-list-transfers:p1:inst-delegate-list
+	query := `
+		SELECT id, source_cluster, source_pvc, destination_cluster, destination_pvc,
+			strategy, state, allow_overwrite, bytes_transferred, bytes_total,
+			chunks_completed, chunks_total, error_message, retry_count, retry_max,
+			created_by, created_at, started_at, completed_at,
+			COUNT(*) OVER() AS total_count
+		FROM transfers WHERE 1=1`
+	args := []any{}
+	argIdx := 1
+
+	if filter.State != nil {
+		query += fmt.Sprintf(" AND state = $%d", argIdx)
+		args = append(args, string(*filter.State))
+		argIdx++
+	}
+	if filter.Cluster != nil {
+		query += fmt.Sprintf(" AND (source_cluster = $%d OR destination_cluster = $%d)", argIdx, argIdx)
+		args = append(args, *filter.Cluster)
+		argIdx++
+	}
+
+	query += " ORDER BY created_at DESC"
+
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 50
+	}
+	query += fmt.Sprintf(" LIMIT $%d", argIdx)
+	args = append(args, limit)
+	argIdx++
+
+	if filter.Offset > 0 {
+		query += fmt.Sprintf(" OFFSET $%d", argIdx)
+		args = append(args, filter.Offset)
+		argIdx++
+	}
+
+	rows, err := r.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var transfers []domain.Transfer
+	var totalCount int
+	for rows.Next() {
+		var t domain.Transfer
+		var strategy, state, errorMessage, createdBy *string
+		if err := rows.Scan(&t.ID, &t.SourceCluster, &t.SourcePVC,
+			&t.DestinationCluster, &t.DestinationPVC,
+			&strategy, &state, &t.AllowOverwrite,
+			&t.BytesTransferred, &t.BytesTotal,
+			&t.ChunksCompleted, &t.ChunksTotal,
+			&errorMessage, &t.RetryCount, &t.RetryMax,
+			&createdBy, &t.CreatedAt, &t.StartedAt, &t.CompletedAt,
+			&totalCount); err != nil {
+			return nil, 0, err
+		}
+		if strategy != nil {
+			t.Strategy = domain.TransferStrategy(*strategy)
+		}
+		if state != nil {
+			t.State = domain.TransferState(*state)
+		}
+		if errorMessage != nil {
+			t.ErrorMessage = *errorMessage
+		}
+		if createdBy != nil {
+			t.CreatedBy = *createdBy
+		}
+		transfers = append(transfers, t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+
+	return transfers, totalCount, nil
+	// @cpt-end:cpt-katapult-flow-api-cli-list-transfers:p1:inst-delegate-list
 }
 
 func (r *TransferRepository) scanTransfer(ctx context.Context, query string, args ...any) (*domain.Transfer, error) {
