@@ -190,18 +190,39 @@ func (s *Server) handleCancelTransfer(w http.ResponseWriter, r *http.Request) {
 
 // handleGetTransferEvents handles GET /api/v1alpha1/transfers/{id}/events.
 // @cpt-dod:cpt-katapult-dod-api-cli-rest-transfer-endpoints:p1
+// @cpt-flow:cpt-katapult-flow-observability-query-events:p2
 func (s *Server) handleGetTransferEvents(w http.ResponseWriter, r *http.Request) {
+	// @cpt-begin:cpt-katapult-flow-observability-query-events:p2:inst-request-events
+	// @cpt-begin:cpt-katapult-flow-observability-query-events:p2:inst-api-get-events
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
 		writeErrorJSON(w, http.StatusBadRequest, "invalid_id", "invalid transfer ID format")
 		return
 	}
+	// @cpt-end:cpt-katapult-flow-observability-query-events:p2:inst-api-get-events
+	// @cpt-end:cpt-katapult-flow-observability-query-events:p2:inst-request-events
 
+	// @cpt-begin:cpt-katapult-flow-observability-query-events:p2:inst-events-check-exists
+	t, err := s.orchestrator.GetTransfer(r.Context(), id)
+	if err != nil {
+		writeErrorJSON(w, http.StatusInternalServerError, "get_failed", err.Error())
+		return
+	}
+	if t == nil {
+		writeErrorJSON(w, http.StatusNotFound, "not_found", "transfer not found")
+		return
+	}
+	// @cpt-end:cpt-katapult-flow-observability-query-events:p2:inst-events-check-exists
+
+	// @cpt-begin:cpt-katapult-flow-observability-query-events:p2:inst-db-query-events
 	events, err := s.orchestrator.GetTransferEvents(r.Context(), id)
 	if err != nil {
 		writeErrorJSON(w, http.StatusInternalServerError, "get_events_failed", err.Error())
 		return
 	}
+	// @cpt-end:cpt-katapult-flow-observability-query-events:p2:inst-db-query-events
 
+	// @cpt-begin:cpt-katapult-flow-observability-query-events:p2:inst-return-events
 	writeJSON(w, http.StatusOK, map[string]any{"events": events})
+	// @cpt-end:cpt-katapult-flow-observability-query-events:p2:inst-return-events
 }

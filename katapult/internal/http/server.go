@@ -7,7 +7,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/maxitosh/katapult/internal/domain"
+	"github.com/maxitosh/katapult/internal/observability"
 	"github.com/maxitosh/katapult/internal/transfer"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // @cpt-dod:cpt-katapult-dod-api-cli-rest-transfer-endpoints:p1
@@ -31,18 +34,41 @@ type RegistryService interface {
 
 // Server is the HTTP REST API server for the control plane.
 type Server struct {
-	orchestrator TransferService
-	registrySvc  RegistryService
-	logger       *slog.Logger
+	orchestrator   TransferService
+	registrySvc    RegistryService
+	progressHub    observability.ProgressSubscriber
+	metricsHandler http.Handler
+	logger         *slog.Logger
+}
+
+// ServerOption configures optional Server dependencies.
+type ServerOption func(*Server)
+
+// WithProgressHub sets the progress hub for SSE streaming.
+func WithProgressHub(hub observability.ProgressSubscriber) ServerOption {
+	return func(s *Server) {
+		s.progressHub = hub
+	}
+}
+
+// WithMetricsHandler sets the Prometheus metrics handler.
+func WithMetricsHandler(reg *prometheus.Registry) ServerOption {
+	return func(s *Server) {
+		s.metricsHandler = promhttp.HandlerFor(reg, promhttp.HandlerOpts{})
+	}
 }
 
 // NewServer creates a new HTTP API server.
-func NewServer(orchestrator TransferService, registrySvc RegistryService, logger *slog.Logger) *Server {
-	return &Server{
+func NewServer(orchestrator TransferService, registrySvc RegistryService, logger *slog.Logger, opts ...ServerOption) *Server {
+	s := &Server{
 		orchestrator: orchestrator,
 		registrySvc:  registrySvc,
 		logger:       logger,
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // Handler returns an http.Handler with all routes and middleware wired up.
@@ -67,6 +93,17 @@ func (s *Server) Handler(validator TokenValidator) http.Handler {
 
 	// Cluster endpoints
 	mux.Handle("GET /api/v1alpha1/clusters", auth(viewer(http.HandlerFunc(s.handleListClusters))))
+
+	// SSE progress streaming
+	// @cpt-flow:cpt-katapult-flow-observability-stream-progress:p1
+	mux.Handle("GET /api/v1alpha1/transfers/{id}/progress", auth(viewer(http.HandlerFunc(s.handleStreamProgress))))
+
+	// @cpt-begin:cpt-katapult-flow-observability-scrape-metrics:p2:inst-prom-scrape
+	// Prometheus metrics (no auth, cluster-internal)
+	if s.metricsHandler != nil {
+		mux.Handle("GET /metrics", s.metricsHandler)
+	}
+	// @cpt-end:cpt-katapult-flow-observability-scrape-metrics:p2:inst-prom-scrape
 
 	return mux
 }
