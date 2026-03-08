@@ -38,6 +38,7 @@ type Server struct {
 	registrySvc    RegistryService
 	progressHub    observability.ProgressSubscriber
 	metricsHandler http.Handler
+	staticDir      string
 	logger         *slog.Logger
 }
 
@@ -55,6 +56,13 @@ func WithProgressHub(hub observability.ProgressSubscriber) ServerOption {
 func WithMetricsHandler(reg *prometheus.Registry) ServerOption {
 	return func(s *Server) {
 		s.metricsHandler = promhttp.HandlerFor(reg, promhttp.HandlerOpts{})
+	}
+}
+
+// WithStaticDir sets the directory for serving the SPA static files.
+func WithStaticDir(dir string) ServerOption {
+	return func(s *Server) {
+		s.staticDir = dir
 	}
 }
 
@@ -104,6 +112,11 @@ func (s *Server) Handler(validator TokenValidator) http.Handler {
 		mux.Handle("GET /metrics", s.metricsHandler)
 	}
 	// @cpt-end:cpt-katapult-flow-observability-scrape-metrics:p2:inst-prom-scrape
+
+	// @cpt-dod:cpt-katapult-dod-web-ui-transfer-dashboard:p1
+	if s.staticDir != "" {
+		mux.Handle("/", spaHandler(s.staticDir))
+	}
 
 	return mux
 }

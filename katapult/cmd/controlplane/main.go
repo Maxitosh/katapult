@@ -47,6 +47,7 @@ func run(logger *slog.Logger) error {
 	unhealthyTimeoutStr := config.EnvOrDefault("UNHEALTHY_TIMEOUT", "90s")
 	disconnectedTimeoutStr := config.EnvOrDefault("DISCONNECTED_TIMEOUT", "5m")
 	healthCheckIntervalStr := config.EnvOrDefault("HEALTH_CHECK_INTERVAL", "30s")
+	webStaticDir := config.EnvOrDefault("WEB_STATIC_DIR", "")
 
 	unhealthyTimeout, err := time.ParseDuration(unhealthyTimeoutStr)
 	if err != nil {
@@ -101,10 +102,15 @@ func run(logger *slog.Logger) error {
 
 	// HTTP REST API server.
 	tokenValidator := loadTokenValidator(apiTokensFile, logger)
-	httpServer := katapulthttp.NewServer(orchestrator, registrySvc, logger,
+	httpOpts := []katapulthttp.ServerOption{
 		katapulthttp.WithProgressHub(progressHub),
 		katapulthttp.WithMetricsHandler(promRegistry),
-	)
+	}
+	if webStaticDir != "" {
+		httpOpts = append(httpOpts, katapulthttp.WithStaticDir(webStaticDir))
+		logger.Info("serving web UI", "dir", webStaticDir)
+	}
+	httpServer := katapulthttp.NewServer(orchestrator, registrySvc, logger, httpOpts...)
 	httpSrv := &stdhttp.Server{
 		Addr:    httpListenAddr,
 		Handler: httpServer.Handler(tokenValidator),
