@@ -64,6 +64,15 @@ type TransferEvent struct {
 	CreatedAt  time.Time         `json:"created_at"`
 }
 
+// TransferFilter holds criteria for listing transfers.
+// @cpt-dod:cpt-katapult-dod-api-cli-rest-transfer-endpoints:p1
+type TransferFilter struct {
+	State   *TransferState
+	Cluster *string
+	Limit   int
+	Offset  int
+}
+
 // TransferConfig holds configuration parameters for transfer orchestration.
 type TransferConfig struct {
 	RetryMaxAttempts      int           `json:"retry_max_attempts"`

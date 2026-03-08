@@ -43,4 +43,10 @@ type AgentRepository interface {
 	// than the cutoff as disconnected. Only affects agents in the "unhealthy" state.
 	// Returns the number of agents marked disconnected.
 	MarkDisconnected(ctx context.Context, cutoff time.Time) (int, error)
+
+	// ListAgents returns agents matching the filter criteria along with the total count.
+	ListAgents(ctx context.Context, filter domain.AgentFilter) ([]domain.Agent, int, error)
+
+	// ListClusters returns all distinct cluster IDs that have registered agents.
+	ListClusters(ctx context.Context) ([]string, error)
 }

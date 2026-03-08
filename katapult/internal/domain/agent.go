@@ -49,6 +49,15 @@ type PVCInfo struct {
 	NodeAffinity string `json:"node_affinity"`
 }
 
+// AgentFilter holds criteria for listing agents.
+// @cpt-dod:cpt-katapult-dod-api-cli-rest-agent-endpoints:p1
+type AgentFilter struct {
+	ClusterID *string
+	State     *AgentState
+	Limit     int
+	Offset    int
+}
+
 // validTransitions defines the allowed state transitions for the agent lifecycle.
 // @cpt-state:cpt-katapult-state-agent-system-agent-lifecycle:p1
 var validTransitions = map[AgentState][]AgentState{

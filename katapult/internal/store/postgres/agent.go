@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/maxitosh/katapult/internal/domain"
@@ -148,6 +149,103 @@ func (r *AgentRepository) MarkDisconnected(ctx context.Context, cutoff time.Time
 		return 0, err
 	}
 	return int(tag.RowsAffected()), nil
+}
+
+// ListAgents returns a filtered, paginated list of agents with total count.
+// @cpt-flow:cpt-katapult-flow-api-cli-list-agents:p1
+// @cpt-dod:cpt-katapult-dod-api-cli-rest-agent-endpoints:p1
+func (r *AgentRepository) ListAgents(ctx context.Context, filter domain.AgentFilter) ([]domain.Agent, int, error) {
+	// @cpt-begin:cpt-katapult-flow-api-cli-list-agents:p1:inst-delegate-agents
+	query := `
+		SELECT id, cluster_id, node_name, healthy, state, last_heartbeat, tools, registered_at, jwt_namespace,
+			COUNT(*) OVER() AS total_count
+		FROM agents WHERE 1=1`
+	args := []any{}
+	argIdx := 1
+
+	if filter.ClusterID != nil {
+		query += fmt.Sprintf(" AND cluster_id = $%d", argIdx)
+		args = append(args, *filter.ClusterID)
+		argIdx++
+	}
+	if filter.State != nil {
+		query += fmt.Sprintf(" AND state = $%d", argIdx)
+		args = append(args, string(*filter.State))
+		argIdx++
+	}
+
+	query += " ORDER BY cluster_id, node_name"
+
+	limit := filter.Limit
+	if limit <= 0 {
+		limit = 50
+	}
+	query += fmt.Sprintf(" LIMIT $%d", argIdx)
+	args = append(args, limit)
+	argIdx++
+
+	if filter.Offset > 0 {
+		query += fmt.Sprintf(" OFFSET $%d", argIdx)
+		args = append(args, filter.Offset)
+		argIdx++
+	}
+
+	rows, err := r.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var agents []domain.Agent
+	var totalCount int
+	for rows.Next() {
+		var a domain.Agent
+		var toolsJSON []byte
+		var state string
+		if err := rows.Scan(&a.ID, &a.ClusterID, &a.NodeName, &a.Healthy, &state,
+			&a.LastHeartbeat, &toolsJSON, &a.RegisteredAt, &a.JWTNamespace,
+			&totalCount); err != nil {
+			return nil, 0, err
+		}
+		if err := json.Unmarshal(toolsJSON, &a.Tools); err != nil {
+			return nil, 0, err
+		}
+		a.State = domain.AgentState(state)
+
+		pvcs, err := r.getPVCs(ctx, a.ID)
+		if err != nil {
+			return nil, 0, err
+		}
+		a.PVCs = pvcs
+
+		agents = append(agents, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+
+	return agents, totalCount, nil
+	// @cpt-end:cpt-katapult-flow-api-cli-list-agents:p1:inst-delegate-agents
+}
+
+// ListClusters returns a list of distinct cluster IDs.
+// @cpt-dod:cpt-katapult-dod-api-cli-rest-agent-endpoints:p1
+func (r *AgentRepository) ListClusters(ctx context.Context) ([]string, error) {
+	rows, err := r.pool.Query(ctx, `SELECT DISTINCT cluster_id FROM agents ORDER BY cluster_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var clusters []string
+	for rows.Next() {
+		var c string
+		if err := rows.Scan(&c); err != nil {
+			return nil, err
+		}
+		clusters = append(clusters, c)
+	}
+	return clusters, rows.Err()
 }
 
 func (r *AgentRepository) scanAgent(ctx context.Context, query string, args ...any) (*domain.Agent, error) {

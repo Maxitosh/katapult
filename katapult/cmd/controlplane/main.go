@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
+	stdhttp "net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,9 +14,12 @@ import (
 
 	pb "github.com/maxitosh/katapult/api/proto/agent/v1alpha1"
 	"github.com/maxitosh/katapult/internal/config"
+	"github.com/maxitosh/katapult/internal/domain"
 	agentgrpc "github.com/maxitosh/katapult/internal/grpc"
+	katapulthttp "github.com/maxitosh/katapult/internal/http"
 	"github.com/maxitosh/katapult/internal/registry"
 	"github.com/maxitosh/katapult/internal/store/postgres"
+	"github.com/maxitosh/katapult/internal/transfer"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -35,6 +40,8 @@ func run(logger *slog.Logger) error {
 
 	databaseURL := config.EnvOrDefault("DATABASE_URL", "postgres://localhost:5432/katapult?sslmode=disable")
 	listenAddr := config.EnvOrDefault("GRPC_LISTEN_ADDR", ":50051")
+	httpListenAddr := config.EnvOrDefault("HTTP_LISTEN_ADDR", ":8080")
+	apiTokensFile := config.EnvOrDefault("API_TOKENS_FILE", "")
 	unhealthyTimeoutStr := config.EnvOrDefault("UNHEALTHY_TIMEOUT", "90s")
 	disconnectedTimeoutStr := config.EnvOrDefault("DISCONNECTED_TIMEOUT", "5m")
 	healthCheckIntervalStr := config.EnvOrDefault("HEALTH_CHECK_INTERVAL", "30s")
@@ -63,12 +70,42 @@ func run(logger *slog.Logger) error {
 	}
 	logger.Info("connected to database")
 
-	repo := postgres.NewAgentRepository(pool)
-	svc := registry.NewService(repo, logger)
+	agentRepo := postgres.NewAgentRepository(pool)
+	registrySvc := registry.NewService(agentRepo, logger)
 
-	healthEval := registry.NewHealthEvaluator(repo, unhealthyTimeout, disconnectedTimeout, logger)
+	healthEval := registry.NewHealthEvaluator(agentRepo, unhealthyTimeout, disconnectedTimeout, logger)
 	go healthEval.RunLoop(ctx, healthCheckInterval)
 
+	// Transfer orchestrator with no-op stubs for agent communication.
+	transferRepo := postgres.NewTransferRepository(pool)
+	commander := transfer.NoopCommander{}
+	credManager := transfer.NoopCredentialManager{}
+	s3Client := transfer.NoopS3Client{}
+	pvcFinder := transfer.NoopPVCFinder{}
+
+	validator := transfer.NewValidator(pvcFinder, commander, logger)
+	cleaner := transfer.NewCleaner(credManager, commander, s3Client, logger)
+	orchestrator := transfer.NewOrchestrator(
+		transferRepo, validator, cleaner, commander, credManager,
+		transfer.S3Config{}, domain.DefaultTransferConfig(), logger,
+	)
+
+	// HTTP REST API server.
+	tokenValidator := loadTokenValidator(apiTokensFile, logger)
+	httpServer := katapulthttp.NewServer(orchestrator, registrySvc, logger)
+	httpSrv := &stdhttp.Server{
+		Addr:    httpListenAddr,
+		Handler: httpServer.Handler(tokenValidator),
+	}
+
+	go func() {
+		logger.Info("HTTP API server starting", "addr", httpListenAddr)
+		if err := httpSrv.ListenAndServe(); err != nil && err != stdhttp.ErrServerClosed {
+			logger.Error("HTTP server error", "error", err)
+		}
+	}()
+
+	// gRPC server setup.
 	var serverOpts []grpc.ServerOption
 
 	// JWT authentication.
@@ -83,8 +120,8 @@ func run(logger *slog.Logger) error {
 		if err != nil {
 			return fmt.Errorf("creating JWT key func: %w", err)
 		}
-		validator := agentgrpc.NewJWTValidator(expectedAgentSA, keyFunc)
-		serverOpts = append(serverOpts, grpc.UnaryInterceptor(agentgrpc.UnaryAuthInterceptor(validator)))
+		jwtValidator := agentgrpc.NewJWTValidator(expectedAgentSA, keyFunc)
+		serverOpts = append(serverOpts, grpc.UnaryInterceptor(agentgrpc.UnaryAuthInterceptor(jwtValidator)))
 		logger.Info("JWT authentication enabled", "expected_sa", expectedAgentSA)
 	} else {
 		logger.Warn("JWT_PUBLIC_KEY_PATH not set, running without JWT authentication")
@@ -104,7 +141,7 @@ func run(logger *slog.Logger) error {
 		logger.Warn("TLS_CERT/TLS_KEY not set, running without TLS")
 	}
 
-	agentServer := agentgrpc.NewAgentServer(svc, nil)
+	agentServer := agentgrpc.NewAgentServer(registrySvc, nil)
 	grpcServer := grpc.NewServer(serverOpts...)
 	pb.RegisterAgentServiceServer(grpcServer, agentServer)
 
@@ -115,14 +152,54 @@ func run(logger *slog.Logger) error {
 
 	go func() {
 		<-ctx.Done()
-		logger.Info("shutting down gRPC server")
+		logger.Info("shutting down servers")
 		grpcServer.GracefulStop()
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer shutdownCancel()
+		_ = httpSrv.Shutdown(shutdownCtx)
 	}()
 
-	logger.Info("control plane started", "addr", listenAddr)
+	logger.Info("control plane started", "grpc_addr", listenAddr, "http_addr", httpListenAddr)
 	if err := grpcServer.Serve(lis); err != nil {
 		return fmt.Errorf("gRPC server error: %w", err)
 	}
 
 	return nil
+}
+
+// tokenFileEntry represents a single entry in the API tokens JSON file.
+type tokenFileEntry struct {
+	Token   string `json:"token"`
+	Subject string `json:"subject"`
+	Role    string `json:"role"`
+}
+
+func loadTokenValidator(path string, logger *slog.Logger) katapulthttp.TokenValidator {
+	if path == "" {
+		logger.Warn("API_TOKENS_FILE not set, using empty token map")
+		return katapulthttp.NewStaticTokenValidator(nil)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		logger.Error("failed to read API tokens file", "path", path, "error", err)
+		return katapulthttp.NewStaticTokenValidator(nil)
+	}
+
+	var entries []tokenFileEntry
+	if err := json.Unmarshal(data, &entries); err != nil {
+		logger.Error("failed to parse API tokens file", "path", path, "error", err)
+		return katapulthttp.NewStaticTokenValidator(nil)
+	}
+
+	tokens := make(map[string]katapulthttp.UserInfo, len(entries))
+	for _, e := range entries {
+		tokens[e.Token] = katapulthttp.UserInfo{
+			Subject: e.Subject,
+			Role:    katapulthttp.Role(e.Role),
+		}
+	}
+
+	logger.Info("loaded API tokens", "count", len(tokens))
+	return katapulthttp.NewStaticTokenValidator(tokens)
 }
