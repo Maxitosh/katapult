@@ -15,6 +15,7 @@ artifacts = [
   { path = "docs/feature-agent-system/FEATURE.md", kind = "FEATURE", traceability = "FULL" },
   { path = "docs/feature-transfer-engine/FEATURE.md", kind = "FEATURE", traceability = "FULL" },
   { path = "docs/feature-api-cli/FEATURE.md", kind = "FEATURE", traceability = "FULL" },
+  { path = "docs/feature-observability/FEATURE.md", kind = "FEATURE", traceability = "FULL" },
 ]
 codebase = [
   { path = "katapult/", feature = "docs/feature-agent-system/FEATURE.md" },

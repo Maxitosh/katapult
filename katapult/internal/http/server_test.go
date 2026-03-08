@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/maxitosh/katapult/internal/domain"
+	"github.com/maxitosh/katapult/internal/observability"
 	"github.com/maxitosh/katapult/internal/registry"
 	"github.com/maxitosh/katapult/internal/testutil"
 	"github.com/maxitosh/katapult/internal/transfer"
@@ -300,6 +301,61 @@ func TestCancelTerminalTransfer(t *testing.T) {
 	}
 	if resp.StatusCode != http.StatusConflict {
 		t.Errorf("expected 409, got %d", resp.StatusCode)
+	}
+}
+
+func setupTestServerWithHub(t *testing.T) (*httptest.Server, *testutil.MemTransferRepo, *testutil.MemRepo) {
+	t.Helper()
+	ts, repo, _, agentRepo := setupTestServerWithHubRepo(t)
+	return ts, repo, agentRepo
+}
+
+func setupTestServerWithHubRepo(t *testing.T) (*httptest.Server, *testutil.MemTransferRepo, *observability.ProgressHub, *testutil.MemRepo) {
+	t.Helper()
+
+	transferRepo := testutil.NewMemTransferRepo()
+	agentRepo := testutil.NewMemRepo()
+	hub := observability.NewProgressHub()
+
+	logger := slog.Default()
+
+	commander := transfer.NoopCommander{}
+	credManager := transfer.NoopCredentialManager{}
+	s3Client := transfer.NoopS3Client{}
+	pvcFinder := transfer.NoopPVCFinder{}
+
+	validator := transfer.NewValidator(pvcFinder, commander, logger)
+	cleaner := transfer.NewCleaner(credManager, commander, s3Client, logger)
+	orchestrator := transfer.NewOrchestrator(
+		transferRepo, validator, cleaner, commander, credManager,
+		transfer.S3Config{}, domain.DefaultTransferConfig(), logger,
+		transfer.WithProgressHub(hub),
+	)
+	registrySvc := registry.NewService(agentRepo, logger)
+
+	tokens := map[string]UserInfo{
+		"op-token":     {Subject: "operator-user", Role: RoleOperator},
+		"viewer-token": {Subject: "viewer-user", Role: RoleViewer},
+	}
+	tokenValidator := NewStaticTokenValidator(tokens)
+	srv := NewServer(orchestrator, registrySvc, logger, WithProgressHub(hub))
+	ts := httptest.NewServer(srv.Handler(tokenValidator))
+	t.Cleanup(ts.Close)
+
+	return ts, transferRepo, hub, agentRepo
+}
+
+func TestGetTransferEventsNotFound(t *testing.T) {
+	ts, _, _ := setupTestServer(t)
+
+	req, _ := http.NewRequest("GET", ts.URL+"/api/v1alpha1/transfers/"+uuid.New().String()+"/events", nil)
+	req.Header.Set("Authorization", "Bearer viewer-token")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", resp.StatusCode)
 	}
 }
 

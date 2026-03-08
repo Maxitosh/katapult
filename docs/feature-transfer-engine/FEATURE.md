@@ -99,7 +99,7 @@ Design constraints satisfied:
 
 ### Initiate Transfer
 
-- [ ] `p1` - **ID**: `cpt-katapult-flow-transfer-engine-initiate`
+- [x] `p1` - **ID**: `cpt-katapult-flow-transfer-engine-initiate`
 
 **Actor**: `cpt-katapult-actor-infra-engineer`
 
@@ -114,26 +114,26 @@ Design constraints satisfied:
 - Agent fails to acknowledge transfer command within timeout
 
 **Steps**:
-1. [ ] - `p1` - Operator submits transfer request via API (source cluster/PVC, destination cluster/PVC, optional strategy override, allow_overwrite flag, retry config) - `inst-submit-request`
-2. [ ] - `p1` - DB: INSERT transfers(source_cluster, source_pvc, destination_cluster, destination_pvc, strategy=null, state=pending, allow_overwrite, retry_max, created_by, created_at=now) RETURNING id - `inst-db-create-transfer`
-3. [ ] - `p1` - DB: INSERT transfer_events(transfer_id, event_type=created, message="Transfer created", created_at=now) - `inst-db-event-created`
-4. [ ] - `p1` - Transition transfer state to Validating using state machine `cpt-katapult-state-transfer-engine-transfer-lifecycle` - `inst-transition-validating`
-5. [ ] - `p1` - Validate transfer request using algorithm `cpt-katapult-algo-transfer-engine-validate-request` - `inst-run-validate`
-6. [ ] - `p1` - **IF** validation fails **RETURN** error with actionable message and transition to Failed - `inst-validation-fail`
-7. [ ] - `p1` - Select transfer strategy using algorithm `cpt-katapult-algo-transfer-engine-select-strategy` - `inst-run-strategy`
-8. [ ] - `p1` - DB: UPDATE transfers SET strategy=? WHERE id=? - `inst-db-set-strategy`
-9. [ ] - `p1` - Request credentials from Credential Manager for selected strategy (TLS certs for stream, scoped S3 session for s3, TLS certs for direct) - `inst-request-credentials`
-10. [ ] - `p1` - Transition transfer state to Transferring - `inst-transition-transferring`
-11. [ ] - `p1` - DB: UPDATE transfers SET started_at=now WHERE id=? - `inst-db-set-started`
-12. [ ] - `p1` - DB: INSERT transfer_events(transfer_id, event_type=started, message="Data transfer started with {strategy} strategy") - `inst-db-event-started`
-13. [ ] - `p1` - Send transfer command to source agent via Agent Registry with credentials, strategy config, and chunk size (if S3) - `inst-command-source`
-14. [ ] - `p1` - Send transfer command to destination agent via Agent Registry with credentials and strategy config - `inst-command-dest`
-15. [ ] - `p1` - **IF** agent does not acknowledge command within transfer command timeout **RETURN** error and transition to Failed - `inst-command-timeout`
-16. [ ] - `p1` - **RETURN** transfer_id, state=transferring - `inst-return-transfer`
+1. [x] - `p1` - Operator submits transfer request via API (source cluster/PVC, destination cluster/PVC, optional strategy override, allow_overwrite flag, retry config) - `inst-submit-request`
+2. [x] - `p1` - DB: INSERT transfers(source_cluster, source_pvc, destination_cluster, destination_pvc, strategy=null, state=pending, allow_overwrite, retry_max, created_by, created_at=now) RETURNING id - `inst-db-create-transfer`
+3. [x] - `p1` - DB: INSERT transfer_events(transfer_id, event_type=created, message="Transfer created", created_at=now) - `inst-db-event-created`
+4. [x] - `p1` - Transition transfer state to Validating using state machine `cpt-katapult-state-transfer-engine-transfer-lifecycle` - `inst-transition-validating`
+5. [x] - `p1` - Validate transfer request using algorithm `cpt-katapult-algo-transfer-engine-validate-request` - `inst-run-validate`
+6. [x] - `p1` - **IF** validation fails **RETURN** error with actionable message and transition to Failed - `inst-validation-fail`
+7. [x] - `p1` - Select transfer strategy using algorithm `cpt-katapult-algo-transfer-engine-select-strategy` - `inst-run-strategy`
+8. [x] - `p1` - DB: UPDATE transfers SET strategy=? WHERE id=? - `inst-db-set-strategy`
+9. [x] - `p1` - Request credentials from Credential Manager for selected strategy (TLS certs for stream, scoped S3 session for s3, TLS certs for direct) - `inst-request-credentials`
+10. [x] - `p1` - Transition transfer state to Transferring - `inst-transition-transferring`
+11. [x] - `p1` - DB: UPDATE transfers SET started_at=now WHERE id=? - `inst-db-set-started`
+12. [x] - `p1` - DB: INSERT transfer_events(transfer_id, event_type=started, message="Data transfer started with {strategy} strategy") - `inst-db-event-started`
+13. [x] - `p1` - Send transfer command to source agent via Agent Registry with credentials, strategy config, and chunk size (if S3) - `inst-command-source`
+14. [x] - `p1` - Send transfer command to destination agent via Agent Registry with credentials and strategy config - `inst-command-dest`
+15. [x] - `p1` - **IF** agent does not acknowledge command within transfer command timeout **RETURN** error and transition to Failed - `inst-command-timeout`
+16. [x] - `p1` - **RETURN** transfer_id, state=transferring - `inst-return-transfer`
 
 ### Cancel Transfer
 
-- [ ] `p1` - **ID**: `cpt-katapult-flow-transfer-engine-cancel`
+- [x] `p1` - **ID**: `cpt-katapult-flow-transfer-engine-cancel`
 
 **Actor**: `cpt-katapult-actor-infra-engineer`
 
@@ -145,20 +145,20 @@ Design constraints satisfied:
 - Agent is unreachable during cancellation; orchestrator proceeds with server-side cleanup and marks transfer cancelled
 
 **Steps**:
-1. [ ] - `p1` - Operator submits cancel request via API (transfer_id) - `inst-submit-cancel`
-2. [ ] - `p1` - DB: SELECT transfers WHERE id=? - `inst-db-load-transfer`
-3. [ ] - `p1` - **IF** transfer state is Completed, Failed, or Cancelled **RETURN** error "Transfer already in terminal state" - `inst-reject-terminal`
-4. [ ] - `p1` - Transition transfer state to Cancelled using state machine `cpt-katapult-state-transfer-engine-transfer-lifecycle` - `inst-transition-cancelled`
-5. [ ] - `p1` - DB: UPDATE transfers SET state=cancelled, completed_at=now WHERE id=? - `inst-db-set-cancelled`
-6. [ ] - `p1` - DB: INSERT transfer_events(transfer_id, event_type=cancelled, message="Transfer cancelled by operator") - `inst-db-event-cancelled`
-7. [ ] - `p1` - Send cancel command to source agent via Agent Registry - `inst-cancel-source`
-8. [ ] - `p1` - Send cancel command to destination agent via Agent Registry - `inst-cancel-dest`
-9. [ ] - `p1` - Execute resource cleanup using algorithm `cpt-katapult-algo-transfer-engine-cleanup` - `inst-run-cleanup`
-10. [ ] - `p1` - **RETURN** transfer_id, state=cancelled - `inst-return-cancelled`
+1. [x] - `p1` - Operator submits cancel request via API (transfer_id) - `inst-submit-cancel`
+2. [x] - `p1` - DB: SELECT transfers WHERE id=? - `inst-db-load-transfer`
+3. [x] - `p1` - **IF** transfer state is Completed, Failed, or Cancelled **RETURN** error "Transfer already in terminal state" - `inst-reject-terminal`
+4. [x] - `p1` - Transition transfer state to Cancelled using state machine `cpt-katapult-state-transfer-engine-transfer-lifecycle` - `inst-transition-cancelled`
+5. [x] - `p1` - DB: UPDATE transfers SET state=cancelled, completed_at=now WHERE id=? - `inst-db-set-cancelled`
+6. [x] - `p1` - DB: INSERT transfer_events(transfer_id, event_type=cancelled, message="Transfer cancelled by operator") - `inst-db-event-cancelled`
+7. [x] - `p1` - Send cancel command to source agent via Agent Registry - `inst-cancel-source`
+8. [x] - `p1` - Send cancel command to destination agent via Agent Registry - `inst-cancel-dest`
+9. [x] - `p1` - Execute resource cleanup using algorithm `cpt-katapult-algo-transfer-engine-cleanup` - `inst-run-cleanup`
+10. [x] - `p1` - **RETURN** transfer_id, state=cancelled - `inst-return-cancelled`
 
 ### Report Progress
 
-- [ ] `p1` - **ID**: `cpt-katapult-flow-transfer-engine-report-progress`
+- [x] `p1` - **ID**: `cpt-katapult-flow-transfer-engine-report-progress`
 
 **Actor**: `cpt-katapult-actor-agent`
 
@@ -171,114 +171,114 @@ Design constraints satisfied:
 - Agent reports failure and retries are exhausted, orchestrator transitions to Failed
 
 **Steps**:
-1. [ ] - `p1` - Agent sends progress report via gRPC AgentService.ReportProgress (transfer_id, bytes_transferred, bytes_total, speed, chunks_completed, chunks_total, status) - `inst-receive-progress`
-2. [ ] - `p1` - DB: UPDATE transfers SET bytes_transferred=?, bytes_total=?, chunks_completed=?, chunks_total=? WHERE id=? - `inst-db-update-progress`
-3. [ ] - `p1` - DB: INSERT transfer_events(transfer_id, event_type=progress, metadata={bytes, speed, chunks}) - `inst-db-event-progress`
-4. [ ] - `p1` - **IF** status is "completed" - `inst-check-completed`
-   1. [ ] - `p1` - Transition transfer state to Completed - `inst-transition-completed`
-   2. [ ] - `p1` - DB: UPDATE transfers SET state=completed, completed_at=now WHERE id=? - `inst-db-set-completed`
-   3. [ ] - `p1` - DB: INSERT transfer_events(transfer_id, event_type=completed, message="Transfer completed successfully") - `inst-db-event-completed`
-   4. [ ] - `p1` - Execute resource cleanup using algorithm `cpt-katapult-algo-transfer-engine-cleanup` - `inst-cleanup-on-complete`
-5. [ ] - `p1` - **IF** status is "failed" - `inst-check-failed`
-   1. [ ] - `p1` - Apply retry logic using algorithm `cpt-katapult-algo-transfer-engine-retry-backoff` - `inst-run-retry`
-   2. [ ] - `p1` - **IF** retry returns "retry" - `inst-check-retry`
-      1. [ ] - `p1` - DB: UPDATE transfers SET retry_count=retry_count+1 WHERE id=? - `inst-db-increment-retry`
-      2. [ ] - `p1` - DB: INSERT transfer_events(transfer_id, event_type=retried, message="Retrying transfer, attempt {N}") - `inst-db-event-retried`
-      3. [ ] - `p1` - Re-send transfer command to agents after backoff delay - `inst-resend-command`
-   3. [ ] - `p1` - **IF** retry returns "exhausted" - `inst-check-exhausted`
-      1. [ ] - `p1` - Transition transfer state to Failed - `inst-transition-failed`
-      2. [ ] - `p1` - DB: UPDATE transfers SET state=failed, error_message=?, completed_at=now WHERE id=? - `inst-db-set-failed`
-      3. [ ] - `p1` - DB: INSERT transfer_events(transfer_id, event_type=failed, message="Transfer failed after {N} retries: {error}") - `inst-db-event-failed`
-      4. [ ] - `p1` - Execute resource cleanup using algorithm `cpt-katapult-algo-transfer-engine-cleanup` - `inst-cleanup-on-fail`
-6. [ ] - `p1` - **RETURN** Acknowledged - `inst-return-ack`
+1. [x] - `p1` - Agent sends progress report via gRPC AgentService.ReportProgress (transfer_id, bytes_transferred, bytes_total, speed, chunks_completed, chunks_total, status) - `inst-receive-progress`
+2. [x] - `p1` - DB: UPDATE transfers SET bytes_transferred=?, bytes_total=?, chunks_completed=?, chunks_total=? WHERE id=? - `inst-db-update-progress`
+3. [x] - `p1` - DB: INSERT transfer_events(transfer_id, event_type=progress, metadata={bytes, speed, chunks}) - `inst-db-event-progress`
+4. [x] - `p1` - **IF** status is "completed" - `inst-check-completed`
+   1. [x] - `p1` - Transition transfer state to Completed - `inst-transition-completed`
+   2. [x] - `p1` - DB: UPDATE transfers SET state=completed, completed_at=now WHERE id=? - `inst-db-set-completed`
+   3. [x] - `p1` - DB: INSERT transfer_events(transfer_id, event_type=completed, message="Transfer completed successfully") - `inst-db-event-completed`
+   4. [x] - `p1` - Execute resource cleanup using algorithm `cpt-katapult-algo-transfer-engine-cleanup` - `inst-cleanup-on-complete`
+5. [x] - `p1` - **IF** status is "failed" - `inst-check-failed`
+   1. [x] - `p1` - Apply retry logic using algorithm `cpt-katapult-algo-transfer-engine-retry-backoff` - `inst-run-retry`
+   2. [x] - `p1` - **IF** retry returns "retry" - `inst-check-retry`
+      1. [x] - `p1` - DB: UPDATE transfers SET retry_count=retry_count+1 WHERE id=? - `inst-db-increment-retry`
+      2. [x] - `p1` - DB: INSERT transfer_events(transfer_id, event_type=retried, message="Retrying transfer, attempt {N}") - `inst-db-event-retried`
+      3. [x] - `p1` - Re-send transfer command to agents after backoff delay - `inst-resend-command`
+   3. [x] - `p1` - **IF** retry returns "exhausted" - `inst-check-exhausted`
+      1. [x] - `p1` - Transition transfer state to Failed - `inst-transition-failed`
+      2. [x] - `p1` - DB: UPDATE transfers SET state=failed, error_message=?, completed_at=now WHERE id=? - `inst-db-set-failed`
+      3. [x] - `p1` - DB: INSERT transfer_events(transfer_id, event_type=failed, message="Transfer failed after {N} retries: {error}") - `inst-db-event-failed`
+      4. [x] - `p1` - Execute resource cleanup using algorithm `cpt-katapult-algo-transfer-engine-cleanup` - `inst-cleanup-on-fail`
+6. [x] - `p1` - **RETURN** Acknowledged - `inst-return-ack`
 
 ## 3. Processes / Business Logic (CDSL)
 
 ### Validate Transfer Request
 
-- [ ] `p1` - **ID**: `cpt-katapult-algo-transfer-engine-validate-request`
+- [x] `p1` - **ID**: `cpt-katapult-algo-transfer-engine-validate-request`
 
 **Input**: Transfer request (source_cluster, source_pvc, destination_cluster, destination_pvc, allow_overwrite)
 
 **Output**: Validation result (success, or rejection with actionable error message)
 
 **Steps**:
-1. [ ] - `p1` - DB: SELECT agent_pvcs JOIN agents WHERE pvc_name=source_pvc AND cluster_id=source_cluster AND agents.healthy=true - `inst-lookup-source-pvc`
-2. [ ] - `p1` - **IF** source PVC not found in agent registry **RETURN** error "Source PVC {source_pvc} not found in cluster {source_cluster}. Verify the PVC exists and the agent on the owning node is healthy." - `inst-reject-no-source`
-3. [ ] - `p1` - DB: SELECT agent_pvcs JOIN agents WHERE pvc_name=destination_pvc AND cluster_id=destination_cluster AND agents.healthy=true - `inst-lookup-dest-pvc`
-4. [ ] - `p1` - **IF** destination PVC not found in agent registry **RETURN** error "Destination PVC {destination_pvc} not found in cluster {destination_cluster}. Verify the PVC exists and the agent on the owning node is healthy." - `inst-reject-no-dest`
-5. [ ] - `p1` - **IF** source_cluster=destination_cluster AND source_pvc=destination_pvc **RETURN** error "Source and destination PVC cannot be the same" - `inst-reject-same-pvc`
-6. [ ] - `p1` - Query destination agent for destination PVC empty status via Agent Registry - `inst-check-dest-empty`
-7. [ ] - `p1` - **IF** destination PVC is non-empty AND allow_overwrite is false **RETURN** error "Destination PVC {destination_pvc} is not empty. Set allow_overwrite=true to overwrite existing data." - `inst-reject-non-empty`
-8. [ ] - `p1` - DB: INSERT transfer_events(transfer_id, event_type=validated, message="Transfer request validated successfully") - `inst-db-event-validated`
-9. [ ] - `p1` - **RETURN** success - `inst-return-valid`
+1. [x] - `p1` - DB: SELECT agent_pvcs JOIN agents WHERE pvc_name=source_pvc AND cluster_id=source_cluster AND agents.healthy=true - `inst-lookup-source-pvc`
+2. [x] - `p1` - **IF** source PVC not found in agent registry **RETURN** error "Source PVC {source_pvc} not found in cluster {source_cluster}. Verify the PVC exists and the agent on the owning node is healthy." - `inst-reject-no-source`
+3. [x] - `p1` - DB: SELECT agent_pvcs JOIN agents WHERE pvc_name=destination_pvc AND cluster_id=destination_cluster AND agents.healthy=true - `inst-lookup-dest-pvc`
+4. [x] - `p1` - **IF** destination PVC not found in agent registry **RETURN** error "Destination PVC {destination_pvc} not found in cluster {destination_cluster}. Verify the PVC exists and the agent on the owning node is healthy." - `inst-reject-no-dest`
+5. [x] - `p1` - **IF** source_cluster=destination_cluster AND source_pvc=destination_pvc **RETURN** error "Source and destination PVC cannot be the same" - `inst-reject-same-pvc`
+6. [x] - `p1` - Query destination agent for destination PVC empty status via Agent Registry - `inst-check-dest-empty`
+7. [x] - `p1` - **IF** destination PVC is non-empty AND allow_overwrite is false **RETURN** error "Destination PVC {destination_pvc} is not empty. Set allow_overwrite=true to overwrite existing data." - `inst-reject-non-empty`
+8. [x] - `p1` - DB: INSERT transfer_events(transfer_id, event_type=validated, message="Transfer request validated successfully") - `inst-db-event-validated`
+9. [x] - `p1` - **RETURN** success - `inst-return-valid`
 
 ### Select Transfer Strategy
 
-- [ ] `p1` - **ID**: `cpt-katapult-algo-transfer-engine-select-strategy`
+- [x] `p1` - **ID**: `cpt-katapult-algo-transfer-engine-select-strategy`
 
 **Input**: Transfer request (source_cluster, destination_cluster, optional strategy_override), S3 configuration availability
 
 **Output**: Selected strategy (stream, s3, or direct)
 
 **Steps**:
-1. [ ] - `p1` - **IF** strategy_override is provided, validate override is one of (stream, s3, direct) - `inst-check-override`
-2. [ ] - `p1` - **IF** strategy_override is valid **RETURN** strategy_override - `inst-return-override`
-3. [ ] - `p1` - **IF** strategy_override is invalid **RETURN** error "Invalid strategy: {override}. Valid options: stream, s3, direct" - `inst-reject-invalid-strategy`
-4. [ ] - `p1` - **IF** source_cluster equals destination_cluster **RETURN** stream (intra-cluster streaming via tar+zstd+stunnel) - `inst-select-stream`
-5. [ ] - `p1` - **IF** source_cluster differs from destination_cluster AND S3 is configured **RETURN** s3 (cross-cluster via chunked S3 staging) - `inst-select-s3`
-6. [ ] - `p1` - **IF** source_cluster differs from destination_cluster AND S3 is not configured **RETURN** direct (cross-cluster fallback via rsync/tar+stunnel without chunk-level resume) - `inst-select-direct`
+1. [x] - `p1` - **IF** strategy_override is provided, validate override is one of (stream, s3, direct) - `inst-check-override`
+2. [x] - `p1` - **IF** strategy_override is valid **RETURN** strategy_override - `inst-return-override`
+3. [x] - `p1` - **IF** strategy_override is invalid **RETURN** error "Invalid strategy: {override}. Valid options: stream, s3, direct" - `inst-reject-invalid-strategy`
+4. [x] - `p1` - **IF** source_cluster equals destination_cluster **RETURN** stream (intra-cluster streaming via tar+zstd+stunnel) - `inst-select-stream`
+5. [x] - `p1` - **IF** source_cluster differs from destination_cluster AND S3 is configured **RETURN** s3 (cross-cluster via chunked S3 staging) - `inst-select-s3`
+6. [x] - `p1` - **IF** source_cluster differs from destination_cluster AND S3 is not configured **RETURN** direct (cross-cluster fallback via rsync/tar+stunnel without chunk-level resume) - `inst-select-direct`
 
 ### Apply Retry with Backoff
 
-- [ ] `p2` - **ID**: `cpt-katapult-algo-transfer-engine-retry-backoff`
+- [x] `p2` - **ID**: `cpt-katapult-algo-transfer-engine-retry-backoff`
 
 **Input**: Current retry_count, retry_max, base_delay, max_delay, jitter_factor, failure reason
 
 **Output**: Decision (retry with computed delay, or exhausted)
 
 **Steps**:
-1. [ ] - `p1` - **IF** retry_count >= retry_max **RETURN** exhausted - `inst-check-exhausted`
-2. [ ] - `p1` - Compute delay = min(base_delay * 2^retry_count, max_delay) - `inst-compute-delay`
-3. [ ] - `p1` - Apply jitter: delay = delay * (1 + random(-jitter_factor, +jitter_factor)) - `inst-apply-jitter`
-4. [ ] - `p1` - **RETURN** retry with computed delay - `inst-return-retry`
+1. [x] - `p1` - **IF** retry_count >= retry_max **RETURN** exhausted - `inst-check-exhausted`
+2. [x] - `p1` - Compute delay = min(base_delay * 2^retry_count, max_delay) - `inst-compute-delay`
+3. [x] - `p1` - Apply jitter: delay = delay * (1 + random(-jitter_factor, +jitter_factor)) - `inst-apply-jitter`
+4. [x] - `p1` - **RETURN** retry with computed delay - `inst-return-retry`
 
 ### Execute Resource Cleanup
 
-- [ ] `p1` - **ID**: `cpt-katapult-algo-transfer-engine-cleanup`
+- [x] `p1` - **ID**: `cpt-katapult-algo-transfer-engine-cleanup`
 
 **Input**: Transfer record (transfer_id, strategy, state), agent connection status
 
 **Output**: Cleanup result (success or partial with warnings)
 
 **Steps**:
-1. [ ] - `p1` - Request Credential Manager to revoke transfer credentials - `inst-revoke-credentials`
-2. [ ] - `p1` - **IF** source agent is reachable, signal source agent to clean up temporary Kubernetes resources (Services, Secrets, staging directories) - `inst-cleanup-source`
-3. [ ] - `p1` - **IF** destination agent is reachable, signal destination agent to remove staging directory and temporary resources - `inst-cleanup-dest`
-4. [ ] - `p1` - **IF** strategy is s3, delete all S3 objects under the transfer prefix via Credential Manager - `inst-cleanup-s3`
-5. [ ] - `p1` - **IF** any cleanup step fails, log warning but do not fail the overall cleanup (best-effort) - `inst-cleanup-warn`
-6. [ ] - `p1` - DB: INSERT transfer_events(transfer_id, event_type=cleanup, message="Resource cleanup completed") - `inst-db-event-cleanup`
-7. [ ] - `p1` - **RETURN** cleanup result - `inst-return-cleanup`
+1. [x] - `p1` - Request Credential Manager to revoke transfer credentials - `inst-revoke-credentials`
+2. [x] - `p1` - **IF** source agent is reachable, signal source agent to clean up temporary Kubernetes resources (Services, Secrets, staging directories) - `inst-cleanup-source`
+3. [x] - `p1` - **IF** destination agent is reachable, signal destination agent to remove staging directory and temporary resources - `inst-cleanup-dest`
+4. [x] - `p1` - **IF** strategy is s3, delete all S3 objects under the transfer prefix via Credential Manager - `inst-cleanup-s3`
+5. [x] - `p1` - **IF** any cleanup step fails, log warning but do not fail the overall cleanup (best-effort) - `inst-cleanup-warn`
+6. [x] - `p1` - DB: INSERT transfer_events(transfer_id, event_type=cleanup, message="Resource cleanup completed") - `inst-db-event-cleanup`
+7. [x] - `p1` - **RETURN** cleanup result - `inst-return-cleanup`
 
 ## 4. States (CDSL)
 
 ### Transfer Lifecycle State Machine
 
-- [ ] `p1` - **ID**: `cpt-katapult-state-transfer-engine-transfer-lifecycle`
+- [x] `p1` - **ID**: `cpt-katapult-state-transfer-engine-transfer-lifecycle`
 
 **States**: Pending, Validating, Transferring, Completed, Failed, Cancelled
 
 **Initial State**: Pending
 
 **Transitions**:
-1. [ ] - `p1` - **FROM** Pending **TO** Validating **WHEN** orchestrator begins PVC and agent validation - `inst-pending-to-validating`
-2. [ ] - `p1` - **FROM** Validating **TO** Transferring **WHEN** validation succeeds, strategy selected, credentials issued, and agent commands sent - `inst-validating-to-transferring`
-3. [ ] - `p1` - **FROM** Validating **TO** Failed **WHEN** validation fails (PVC not found, agent unhealthy, destination non-empty) - `inst-validating-to-failed`
-4. [ ] - `p1` - **FROM** Transferring **TO** Completed **WHEN** agent reports transfer complete and cleanup succeeds - `inst-transferring-to-completed`
-5. [ ] - `p1` - **FROM** Transferring **TO** Failed **WHEN** agent reports failure and retry attempts exhausted - `inst-transferring-to-failed`
-6. [ ] - `p1` - **FROM** Pending **TO** Cancelled **WHEN** operator cancels before validation starts - `inst-pending-to-cancelled`
-7. [ ] - `p1` - **FROM** Validating **TO** Cancelled **WHEN** operator cancels during validation - `inst-validating-to-cancelled`
-8. [ ] - `p1` - **FROM** Transferring **TO** Cancelled **WHEN** operator cancels active transfer - `inst-transferring-to-cancelled`
+1. [x] - `p1` - **FROM** Pending **TO** Validating **WHEN** orchestrator begins PVC and agent validation - `inst-pending-to-validating`
+2. [x] - `p1` - **FROM** Validating **TO** Transferring **WHEN** validation succeeds, strategy selected, credentials issued, and agent commands sent - `inst-validating-to-transferring`
+3. [x] - `p1` - **FROM** Validating **TO** Failed **WHEN** validation fails (PVC not found, agent unhealthy, destination non-empty) - `inst-validating-to-failed`
+4. [x] - `p1` - **FROM** Transferring **TO** Completed **WHEN** agent reports transfer complete and cleanup succeeds - `inst-transferring-to-completed`
+5. [x] - `p1` - **FROM** Transferring **TO** Failed **WHEN** agent reports failure and retry attempts exhausted - `inst-transferring-to-failed`
+6. [x] - `p1` - **FROM** Pending **TO** Cancelled **WHEN** operator cancels before validation starts - `inst-pending-to-cancelled`
+7. [x] - `p1` - **FROM** Validating **TO** Cancelled **WHEN** operator cancels during validation - `inst-validating-to-cancelled`
+8. [x] - `p1` - **FROM** Transferring **TO** Cancelled **WHEN** operator cancels active transfer - `inst-transferring-to-cancelled`
 
 **Invariants**: All transitions not listed above are invalid. In particular:
 - Completed → any state is prohibited (terminal state)
@@ -291,7 +291,7 @@ Design constraints satisfied:
 
 ### Transfer Initiation
 
-- [ ] `p1` - **ID**: `cpt-katapult-dod-transfer-engine-initiation`
+- [x] `p1` - **ID**: `cpt-katapult-dod-transfer-engine-initiation`
 
 The system **MUST** accept transfer requests specifying source and destination cluster/PVC pairs, validate that both PVCs exist in the agent registry with healthy agents, select an appropriate transfer strategy, issue credentials, send commands to source and destination agents, and persist the transfer record with audit events.
 
@@ -318,7 +318,7 @@ The system **MUST** accept transfer requests specifying source and destination c
 
 ### Transfer Cancellation
 
-- [ ] `p1` - **ID**: `cpt-katapult-dod-transfer-engine-cancellation`
+- [x] `p1` - **ID**: `cpt-katapult-dod-transfer-engine-cancellation`
 
 The system **MUST** accept cancellation requests for active transfers (Pending, Validating, or Transferring states), transition the transfer to Cancelled, signal both source and destination agents to stop, execute resource cleanup (credentials, temp resources, S3 objects), and leave the destination PVC in a safe state.
 
@@ -340,7 +340,7 @@ The system **MUST** accept cancellation requests for active transfers (Pending, 
 
 ### Strategy Selection
 
-- [ ] `p1` - **ID**: `cpt-katapult-dod-transfer-engine-strategy`
+- [x] `p1` - **ID**: `cpt-katapult-dod-transfer-engine-strategy`
 
 The system **MUST** automatically select the optimal transfer strategy based on source/destination topology: streaming (tar+zstd via stunnel) for intra-cluster transfers, S3-staged (chunked upload/download) for cross-cluster transfers when S3 is configured, and direct (rsync/tar via stunnel) as cross-cluster fallback without S3. Manual strategy override must be supported.
 
@@ -360,7 +360,7 @@ The system **MUST** automatically select the optimal transfer strategy based on 
 
 ### Resumable Transfers
 
-- [ ] `p1` - **ID**: `cpt-katapult-dod-transfer-engine-resumable`
+- [x] `p1` - **ID**: `cpt-katapult-dod-transfer-engine-resumable`
 
 The system **MUST** support resumable cross-cluster transfers via chunked S3 staging. Data is compressed and split into fixed-size chunks (configurable, default 4 GiB) uploaded to S3. On failure, transfer resumes from the first missing chunk rather than restarting. Destination agent downloads chunks in parallel, verifies checksums, reassembles, and extracts.
 
@@ -383,7 +383,7 @@ The system **MUST** support resumable cross-cluster transfers via chunked S3 sta
 
 ### Destination Safety
 
-- [ ] `p1` - **ID**: `cpt-katapult-dod-transfer-engine-dest-safety`
+- [x] `p1` - **ID**: `cpt-katapult-dod-transfer-engine-dest-safety`
 
 The system **MUST** perform pre-flight checks on the destination PVC before starting data transfer. If the destination is non-empty and `allow_overwrite` is false, the transfer fails with an actionable error message. If `allow_overwrite` is true, existing data on the destination is overwritten.
 
@@ -402,7 +402,7 @@ The system **MUST** perform pre-flight checks on the destination PVC before star
 
 ### Retry with Backoff
 
-- [ ] `p2` - **ID**: `cpt-katapult-dod-transfer-engine-retry`
+- [x] `p2` - **ID**: `cpt-katapult-dod-transfer-engine-retry`
 
 The system **MUST** retry failed transfer phases with configurable exponential backoff (base delay * 2^attempt) capped at a maximum delay, with random jitter applied to prevent thundering herd. After retry exhaustion, the transfer transitions to Failed with an actionable error message.
 
@@ -422,7 +422,7 @@ The system **MUST** retry failed transfer phases with configurable exponential b
 
 ### Transfer Autonomy
 
-- [ ] `p1` - **ID**: `cpt-katapult-dod-transfer-engine-autonomy`
+- [x] `p1` - **ID**: `cpt-katapult-dod-transfer-engine-autonomy`
 
 The system **MUST** ensure that once agents receive transfer commands and the data path is established, transfers complete independently of further control plane communication. Agents continue data movement during control plane downtime. When the control plane recovers, agents report final status and the orchestrator reconciles transfer state.
 
@@ -444,7 +444,7 @@ The system **MUST** ensure that once agents receive transfer commands and the da
 
 ### Resource Cleanup
 
-- [ ] `p1` - **ID**: `cpt-katapult-dod-transfer-engine-cleanup`
+- [x] `p1` - **ID**: `cpt-katapult-dod-transfer-engine-cleanup`
 
 The system **MUST** execute resource cleanup on all terminal states (Completed, Failed, Cancelled). Cleanup includes revoking transfer credentials, signaling agents to remove temporary Kubernetes resources (Services, Secrets, staging directories), and deleting S3 objects for S3-staged transfers. Cleanup is best-effort — individual step failures are logged as warnings but do not prevent the transfer from reaching its terminal state.
 
@@ -464,7 +464,7 @@ The system **MUST** execute resource cleanup on all terminal states (Completed, 
 
 ### Transfer State Persistence
 
-- [ ] `p1` - **ID**: `cpt-katapult-dod-transfer-engine-persistence`
+- [x] `p1` - **ID**: `cpt-katapult-dod-transfer-engine-persistence`
 
 The system **MUST** persist all transfer state and audit events to PostgreSQL. The transfers table stores source/destination, strategy, state, progress metrics, retry count, error messages, and timestamps. The transfer_events table stores a timeline of all state transitions and progress events with metadata. Both tables survive control plane restarts.
 

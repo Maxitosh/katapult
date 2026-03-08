@@ -2,12 +2,14 @@ package transfer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/maxitosh/katapult/internal/domain"
+	"github.com/maxitosh/katapult/internal/observability"
 )
 
 // CreateTransferRequest holds the parameters for creating a new transfer.
@@ -43,6 +45,9 @@ type ProgressReport struct {
 // Orchestrator coordinates transfer lifecycle operations.
 // @cpt-dod:cpt-katapult-dod-transfer-engine-initiation:p1
 // @cpt-dod:cpt-katapult-dod-transfer-engine-cancellation:p1
+// @cpt-dod:cpt-katapult-dod-observability-realtime-progress:p1
+// @cpt-dod:cpt-katapult-dod-observability-actionable-errors:p1
+// @cpt-dod:cpt-katapult-dod-observability-metrics-logging:p2
 type Orchestrator struct {
 	repo        TransferRepository
 	validator   *Validator
@@ -52,6 +57,25 @@ type Orchestrator struct {
 	s3Config    S3Config
 	config      domain.TransferConfig
 	logger      *slog.Logger
+	progressHub observability.ProgressPublisher
+	metrics     observability.MetricsRecorder
+}
+
+// OrchestratorOption configures optional Orchestrator dependencies.
+type OrchestratorOption func(*Orchestrator)
+
+// WithProgressHub sets the progress publisher for SSE streaming.
+func WithProgressHub(hub observability.ProgressPublisher) OrchestratorOption {
+	return func(o *Orchestrator) {
+		o.progressHub = hub
+	}
+}
+
+// WithMetrics sets the metrics recorder.
+func WithMetrics(m observability.MetricsRecorder) OrchestratorOption {
+	return func(o *Orchestrator) {
+		o.metrics = m
+	}
 }
 
 // NewOrchestrator creates a new transfer orchestrator.
@@ -64,8 +88,9 @@ func NewOrchestrator(
 	s3Config S3Config,
 	config domain.TransferConfig,
 	logger *slog.Logger,
+	opts ...OrchestratorOption,
 ) *Orchestrator {
-	return &Orchestrator{
+	o := &Orchestrator{
 		repo:        repo,
 		validator:   validator,
 		cleaner:     cleaner,
@@ -75,6 +100,10 @@ func NewOrchestrator(
 		config:      config,
 		logger:      logger,
 	}
+	for _, opt := range opts {
+		opt(o)
+	}
+	return o
 }
 
 // CreateTransfer orchestrates the creation of a new transfer.
@@ -259,6 +288,13 @@ func (o *Orchestrator) CancelTransfer(ctx context.Context, transferID uuid.UUID)
 	o.createEvent(ctx, transferID, "cancelled", "Transfer cancelled by operator", nil)
 	// @cpt-end:cpt-katapult-flow-transfer-engine-cancel:p1:inst-db-event-cancelled
 
+	if o.progressHub != nil {
+		o.progressHub.CloseTransfer(transferID)
+	}
+	if o.metrics != nil {
+		o.metrics.OnTransferStateChange("transferring", "cancelled", string(transfer.Strategy))
+	}
+
 	// @cpt-begin:cpt-katapult-flow-transfer-engine-cancel:p1:inst-cancel-source
 	if err := o.commander.SendCancelCommand(ctx, transfer.SourceCluster, transferID.String()); err != nil {
 		o.logger.Warn("failed to send cancel to source agent", "transfer_id", transferID, "error", err)
@@ -315,6 +351,30 @@ func (o *Orchestrator) HandleProgress(ctx context.Context, report ProgressReport
 	})
 	// @cpt-end:cpt-katapult-flow-transfer-engine-report-progress:p1:inst-db-event-progress
 
+	// @cpt-begin:cpt-katapult-flow-observability-stream-progress:p1:inst-calculate-derived
+	correlationID := report.TransferID.String()
+	enriched := observability.EnrichProgress(observability.RawProgress{
+		TransferID:       report.TransferID,
+		BytesTransferred: report.BytesTransferred,
+		BytesTotal:       report.BytesTotal,
+		SpeedBytesPerSec: report.Speed,
+		ChunksCompleted:  report.ChunksCompleted,
+		ChunksTotal:      report.ChunksTotal,
+		Status:           report.Status,
+		ErrorMessage:     report.ErrorMessage,
+	}, correlationID)
+	// @cpt-end:cpt-katapult-flow-observability-stream-progress:p1:inst-calculate-derived
+
+	// @cpt-begin:cpt-katapult-flow-observability-stream-progress:p1:inst-push-sse
+	if o.progressHub != nil {
+		o.progressHub.Publish(report.TransferID, enriched)
+	}
+	// @cpt-end:cpt-katapult-flow-observability-stream-progress:p1:inst-push-sse
+
+	if o.metrics != nil {
+		o.metrics.OnProgressReport(report.BytesTransferred, report.Speed)
+	}
+
 	// @cpt-begin:cpt-katapult-flow-transfer-engine-report-progress:p1:inst-check-completed
 	if report.Status == "completed" {
 		// @cpt-begin:cpt-katapult-flow-transfer-engine-report-progress:p1:inst-transition-completed
@@ -335,6 +395,16 @@ func (o *Orchestrator) HandleProgress(ctx context.Context, report ProgressReport
 		// @cpt-begin:cpt-katapult-flow-transfer-engine-report-progress:p1:inst-db-event-completed
 		o.createEvent(ctx, report.TransferID, "completed", "Transfer completed successfully", nil)
 		// @cpt-end:cpt-katapult-flow-transfer-engine-report-progress:p1:inst-db-event-completed
+
+		// @cpt-begin:cpt-katapult-flow-observability-stream-progress:p1:inst-stream-complete
+		if o.progressHub != nil {
+			o.progressHub.CloseTransfer(report.TransferID)
+		}
+		// @cpt-end:cpt-katapult-flow-observability-stream-progress:p1:inst-stream-complete
+
+		if o.metrics != nil {
+			o.metrics.OnTransferStateChange("transferring", "completed", string(transfer.Strategy))
+		}
 
 		// @cpt-begin:cpt-katapult-flow-transfer-engine-report-progress:p1:inst-cleanup-on-complete
 		if err := o.cleaner.ExecuteCleanup(ctx, transfer); err != nil {
@@ -389,7 +459,10 @@ func (o *Orchestrator) HandleProgress(ctx context.Context, report ProgressReport
 		// @cpt-end:cpt-katapult-flow-transfer-engine-report-progress:p1:inst-transition-failed
 
 		// @cpt-begin:cpt-katapult-flow-transfer-engine-report-progress:p1:inst-db-set-failed
-		errMsg := fmt.Sprintf("Transfer failed after %d retries: %s", transfer.RetryMax, report.ErrorMessage)
+		// @cpt-begin:cpt-katapult-algo-observability-enrich-error:p1:inst-compose-message
+		actionable := observability.EnrichError(errors.New(report.ErrorMessage), observability.ErrorContext{})
+		errMsg := actionable.String()
+		// @cpt-end:cpt-katapult-algo-observability-enrich-error:p1:inst-compose-message
 		if err := o.repo.UpdateTransferFailed(ctx, report.TransferID, errMsg); err != nil {
 			return fmt.Errorf("persisting failed state: %w", err)
 		}
@@ -398,6 +471,14 @@ func (o *Orchestrator) HandleProgress(ctx context.Context, report ProgressReport
 		// @cpt-begin:cpt-katapult-flow-transfer-engine-report-progress:p1:inst-db-event-failed
 		o.createEvent(ctx, report.TransferID, "failed", errMsg, nil)
 		// @cpt-end:cpt-katapult-flow-transfer-engine-report-progress:p1:inst-db-event-failed
+
+		if o.progressHub != nil {
+			o.progressHub.CloseTransfer(report.TransferID)
+		}
+		if o.metrics != nil {
+			o.metrics.OnTransferStateChange("transferring", "failed", string(transfer.Strategy))
+			o.metrics.OnTransferError(string(actionable.Category))
+		}
 
 		// @cpt-begin:cpt-katapult-flow-transfer-engine-report-progress:p1:inst-cleanup-on-fail
 		if err := o.cleaner.ExecuteCleanup(ctx, transfer); err != nil {
@@ -439,6 +520,9 @@ func (o *Orchestrator) GetTransferEvents(ctx context.Context, transferID uuid.UU
 	return o.repo.GetTransferEvents(ctx, transferID)
 }
 
+// @cpt-begin:cpt-katapult-algo-observability-record-event:p2:inst-receive-event
+// @cpt-begin:cpt-katapult-algo-observability-record-event:p2:inst-gen-timestamp
+// @cpt-begin:cpt-katapult-algo-observability-record-event:p2:inst-db-insert-event
 func (o *Orchestrator) createEvent(ctx context.Context, transferID uuid.UUID, eventType, message string, metadata map[string]string) {
 	event := &domain.TransferEvent{
 		ID:         uuid.New(),
@@ -450,9 +534,22 @@ func (o *Orchestrator) createEvent(ctx context.Context, transferID uuid.UUID, ev
 	}
 	if err := o.repo.CreateTransferEvent(ctx, event); err != nil {
 		o.logger.Warn("failed to create transfer event",
+			"correlation_id", transferID.String(),
 			"transfer_id", transferID,
 			"event_type", eventType,
 			"error", err,
 		)
 	}
+	// @cpt-begin:cpt-katapult-algo-observability-record-event:p2:inst-log-event
+	o.logger.Info("transfer event recorded",
+		"correlation_id", transferID.String(),
+		"transfer_id", transferID,
+		"event_type", eventType,
+		"message", message,
+	)
+	// @cpt-end:cpt-katapult-algo-observability-record-event:p2:inst-log-event
 }
+
+// @cpt-end:cpt-katapult-algo-observability-record-event:p2:inst-db-insert-event
+// @cpt-end:cpt-katapult-algo-observability-record-event:p2:inst-gen-timestamp
+// @cpt-end:cpt-katapult-algo-observability-record-event:p2:inst-receive-event

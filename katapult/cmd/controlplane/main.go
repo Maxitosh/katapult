@@ -17,10 +17,12 @@ import (
 	"github.com/maxitosh/katapult/internal/domain"
 	agentgrpc "github.com/maxitosh/katapult/internal/grpc"
 	katapulthttp "github.com/maxitosh/katapult/internal/http"
+	"github.com/maxitosh/katapult/internal/observability"
 	"github.com/maxitosh/katapult/internal/registry"
 	"github.com/maxitosh/katapult/internal/store/postgres"
 	"github.com/maxitosh/katapult/internal/transfer"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -83,16 +85,26 @@ func run(logger *slog.Logger) error {
 	s3Client := transfer.NoopS3Client{}
 	pvcFinder := transfer.NoopPVCFinder{}
 
+	// Observability: progress hub and Prometheus metrics.
+	progressHub := observability.NewProgressHub()
+	promRegistry := prometheus.NewRegistry()
+	metrics := observability.NewMetrics(promRegistry)
+
 	validator := transfer.NewValidator(pvcFinder, commander, logger)
 	cleaner := transfer.NewCleaner(credManager, commander, s3Client, logger)
 	orchestrator := transfer.NewOrchestrator(
 		transferRepo, validator, cleaner, commander, credManager,
 		transfer.S3Config{}, domain.DefaultTransferConfig(), logger,
+		transfer.WithProgressHub(progressHub),
+		transfer.WithMetrics(metrics),
 	)
 
 	// HTTP REST API server.
 	tokenValidator := loadTokenValidator(apiTokensFile, logger)
-	httpServer := katapulthttp.NewServer(orchestrator, registrySvc, logger)
+	httpServer := katapulthttp.NewServer(orchestrator, registrySvc, logger,
+		katapulthttp.WithProgressHub(progressHub),
+		katapulthttp.WithMetricsHandler(promRegistry),
+	)
 	httpSrv := &stdhttp.Server{
 		Addr:    httpListenAddr,
 		Handler: httpServer.Handler(tokenValidator),
