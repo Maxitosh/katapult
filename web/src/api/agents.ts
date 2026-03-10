@@ -33,10 +33,12 @@ export function getAgent(id: string): Promise<Agent> {
   return apiGet<Agent>(`/agents/${id}`);
 }
 
-export function getAgentPVCs(id: string): Promise<PVCInfo[]> {
-  return apiGet<PVCInfo[]>(`/agents/${id}/pvcs`);
+export async function getAgentPVCs(id: string): Promise<PVCInfo[]> {
+  const resp = await apiGet<{ pvcs: PVCInfo[] }>(`/agents/${id}/pvcs`);
+  return resp.pvcs;
 }
 
-export function listClusters(): Promise<string[]> {
-  return apiGet<string[]>("/clusters");
+export async function listClusters(): Promise<string[]> {
+  const resp = await apiGet<{ clusters: string[] }>("/clusters");
+  return resp.clusters;
 }

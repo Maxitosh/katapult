@@ -1,0 +1,12 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: katapult-controlplane
+  namespace: katapult-system
+spec:
+  template:
+    spec:
+      containers:
+        - name: controlplane
+          image: katapult-controlplane:local
+          imagePullPolicy: Never

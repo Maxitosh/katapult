@@ -63,6 +63,11 @@
       - [Responsibility scope](#responsibility-scope-7)
       - [Responsibility boundaries](#responsibility-boundaries-7)
       - [Related components (by ID)](#related-components-by-id-7)
+    - [Local Development Environment](#local-development-environment)
+      - [Why this component exists](#why-this-component-exists-8)
+      - [Responsibility scope](#responsibility-scope-8)
+      - [Responsibility boundaries](#responsibility-boundaries-8)
+      - [Related components (by ID)](#related-components-by-id-8)
   - [3.3 API Contracts](#33-api-contracts)
   - [3.4 Internal Dependencies](#34-internal-dependencies)
   - [3.5 External Dependencies](#35-external-dependencies)
@@ -72,6 +77,7 @@
     - [Prometheus](#prometheus)
     - [controller-runtime/envtest](#controller-runtimeenvtest)
     - [Kind](#kind)
+    - [docker-compose](#docker-compose)
   - [3.6 Interactions & Sequences](#36-interactions-sequences)
     - [Intra-Cluster Streaming Transfer](#intra-cluster-streaming-transfer)
     - [Cross-Cluster S3-Staged Transfer](#cross-cluster-s3-staged-transfer)
@@ -141,6 +147,12 @@ The architecture follows three core tenets: agents are autonomous executors (tra
 | `cpt-katapult-fr-controller-integration-tests` | Test Harness provides envtest-based controller test suite; CRD Controller component testable via `controller-runtime/pkg/envtest` with local etcd + API server |
 | `cpt-katapult-fr-component-integration-tests` | Test Harness provides testcontainers-based component test suite; cross-component interactions validated via real PostgreSQL, MinIO, and gRPC servers in containers |
 | `cpt-katapult-fr-e2e-tests` | Test Harness provides Kind-based E2E test suite; full Katapult stack deployed to ephemeral clusters with real PVC transfers and data integrity verification |
+| `cpt-katapult-fr-local-env-provision` | Local Dev Environment component provides single-command setup (`make local-up`) that provisions Kind cluster(s), PostgreSQL, MinIO, control plane, agents, and Web UI via docker-compose + Kind |
+| `cpt-katapult-fr-local-single-cluster` | Local Dev Environment provisions a Kind cluster with multiple worker nodes; agents deployed as DaemonSet; enables real intra-cluster data movement between worker nodes |
+| `cpt-katapult-fr-local-multi-cluster` | Local Dev Environment provisions two Kind clusters with MinIO as S3 staging; enables full cross-cluster S3-staged transfer path testing |
+| `cpt-katapult-fr-local-seed-data` | Local Dev Environment seeds PVCs with sample data, pre-registers agents, and populates transfer history for realistic dev/demo scenarios |
+| `cpt-katapult-fr-local-fast-rebuild` | Local Dev Environment supports rebuilding and redeploying individual components without reprovisioning the entire environment |
+| `cpt-katapult-fr-local-env-teardown` | Local Dev Environment provides single-command cleanup (`make local-down`) that removes all Kind clusters, docker containers, networks, and volumes |
 
 #### NFR Allocation
 
@@ -154,6 +166,7 @@ The architecture follows three core tenets: agents are autonomous executors (tra
 | `cpt-katapult-nfr-cp-availability` | Best-effort single replica | `cpt-katapult-component-api-server` | Single Deployment replica; active transfers continue during downtime per agent autonomy | Simulate control plane restart during active transfer |
 | `cpt-katapult-nfr-cp-recovery` | RTO <30 min; agent registry auto-rebuilds | `cpt-katapult-component-agent-registry` | PostgreSQL for durable state; agents re-register on reconnect; control plane stateless restart | Destroy control plane PV, redeploy, measure time to operational |
 | `cpt-katapult-nfr-test-execution-time` | Test execution time bounds per tier | `cpt-katapult-component-test-harness` | Three-tier test architecture with build tag separation; envtest for fast controller tests, testcontainers for component tests, Kind for E2E | CI pipeline measures wall-clock per tier; fail if thresholds exceeded |
+| `cpt-katapult-nfr-local-env-startup` | Local env ready in <3 min | `cpt-katapult-component-local-dev-env` | Pre-built container images cached locally; Kind cluster with pre-loaded images; parallel service startup via docker-compose | Timer: `make local-up` to first successful transfer-ready state |
 
 ### 1.3 Architecture Layers
 
@@ -604,6 +617,39 @@ Provides reusable test infrastructure for validating Katapult across three tiers
 - `cpt-katapult-component-agent-runtime` — validated via E2E tests (full transfer path)
 - `cpt-katapult-component-transfer-orchestrator` — validated via component and E2E tests
 
+#### Local Development Environment
+
+- [ ] `p2` - **ID**: `cpt-katapult-component-local-dev-env`
+
+##### Why this component exists
+
+Provides a single-command local development environment that provisions the full Katapult stack (Kind clusters, PostgreSQL, MinIO, control plane, agents, Web UI) for interactive development, testing, and demos. Ensures developers can run and test all Katapult capabilities locally without access to real multi-cluster infrastructure.
+
+##### Responsibility scope
+
+- Kind cluster provisioning: single-cluster mode (1 control-plane node + multiple worker nodes) and multi-cluster mode (2 Kind clusters)
+- Supporting service orchestration via docker-compose: PostgreSQL, MinIO
+- Katapult component deployment: build Go binaries, build container images, deploy control plane and agents to Kind cluster(s)
+- Seed data provisioning: create PVCs with sample data on worker nodes, trigger agent registration, populate transfer history
+- Incremental rebuild: rebuild and redeploy individual components (control plane, agent) without full environment reprovisioning
+- Environment teardown: remove all Kind clusters, docker containers, networks, and volumes
+- Makefile targets: `local-up`, `local-down`, `local-rebuild`, `local-up MODE=multi`
+
+##### Responsibility boundaries
+
+- Does not run in CI pipelines (separate from Test Harness E2E infrastructure)
+- Does not manage production deployments or Helm charts
+- Does not implement Katapult business logic
+- Does not replace automated tests (Test Harness is the test infrastructure)
+
+##### Related components (by ID)
+
+- `cpt-katapult-component-api-server` — deployed into local Kind cluster
+- `cpt-katapult-component-agent-runtime` — deployed as DaemonSet on Kind worker nodes
+- `cpt-katapult-component-transfer-orchestrator` — deployed as part of control plane
+- `cpt-katapult-component-web-ui` — deployed and accessible via local port
+- `cpt-katapult-component-test-harness` — separate concern; Local Dev Environment is for interactive use, Test Harness is for automated tests
+
 ### 3.3 API Contracts
 
 - [ ] `p1` - **ID**: `cpt-katapult-interface-control-plane-api`
@@ -709,6 +755,13 @@ Provides reusable test infrastructure for validating Katapult across three tiers
 | Dependency | Interface Used | Purpose |
 |-----------|---------------|---------|
 | Test Harness (E2E tests) | `sigs.k8s.io/kind` Go API or CLI (`kind create cluster`) | Create/destroy ephemeral Kubernetes clusters for E2E tests |
+| Local Dev Environment | `kind create cluster` CLI with custom config | Provision single-cluster (multi-worker) or multi-cluster local environments |
+
+#### docker-compose
+
+| Dependency | Interface Used | Purpose |
+|-----------|---------------|---------|
+| Local Dev Environment | `docker-compose up/down` CLI | Orchestrate supporting services (PostgreSQL, MinIO) for local development |
 
 ### 3.6 Interactions & Sequences
 

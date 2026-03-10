@@ -11,6 +11,7 @@
   - [2.1 Human Actors](#21-human-actors)
     - [Infrastructure Engineer](#infrastructure-engineer)
     - [Support Engineer](#support-engineer)
+    - [Developer](#developer)
   - [2.2 System Actors](#22-system-actors)
     - [Agent](#agent)
     - [Control Plane](#control-plane)
@@ -61,6 +62,13 @@
     - [Controller Integration Test Environment](#controller-integration-test-environment)
     - [Component Integration Test Environment](#component-integration-test-environment)
     - [End-to-End Test Environment](#end-to-end-test-environment)
+  - [5.10 Local Development Environment](#510-local-development-environment)
+    - [Local Environment Provisioning](#local-environment-provisioning)
+    - [Single-Cluster Mode](#single-cluster-mode)
+    - [Multi-Cluster Mode](#multi-cluster-mode)
+    - [Seed Data](#seed-data)
+    - [Fast Rebuild Cycle](#fast-rebuild-cycle)
+    - [Environment Teardown](#environment-teardown)
 - [6. Non-Functional Requirements](#6-non-functional-requirements)
   - [6.1 NFR Inclusions](#61-nfr-inclusions)
     - [Transfer Throughput — Intra-Cluster](#transfer-throughput-intra-cluster)
@@ -71,6 +79,7 @@
     - [Control Plane Availability](#control-plane-availability)
     - [Control Plane State Recovery](#control-plane-state-recovery)
     - [Test Execution Time](#test-execution-time)
+    - [Local Environment Startup Time](#local-environment-startup-time)
   - [6.2 NFR Exclusions](#62-nfr-exclusions)
 - [7. Public Library Interfaces](#7-public-library-interfaces)
   - [7.1 Public API Surface](#71-public-api-surface)
@@ -87,6 +96,8 @@
     - [Cross-Cluster Volume Transfer](#cross-cluster-volume-transfer)
     - [Support Engineer Self-Service Transfer](#support-engineer-self-service-transfer)
     - [Cancel Active Transfer](#cancel-active-transfer-1)
+  - [8.2 Local Development](#82-local-development)
+    - [Developer Local Workflow](#developer-local-workflow)
 - [9. Acceptance Criteria](#9-acceptance-criteria)
 - [10. Dependencies](#10-dependencies)
 - [11. Assumptions](#11-assumptions)
@@ -175,6 +186,13 @@ This process is repeated up to ~10 times per week, with volumes ranging from 200
 **Role**: Occasionally handles node deployment tasks. Technically capable but not a Kubernetes specialist.
 **Needs**: Simple web UI, guided workflow, no room for misconfiguration, transfer progress visibility.
 
+#### Developer
+
+**ID**: `cpt-katapult-actor-developer`
+
+**Role**: Develops and tests Katapult itself. Builds new features, fixes bugs, and demonstrates capabilities. Needs to run the full Katapult stack locally for feature development, debugging, and demos.
+**Needs**: Single-command environment setup, fast rebuild cycles, realistic seed data, ability to test both intra-cluster and cross-cluster transfer flows locally.
+
 ### 2.2 System Actors
 
 #### Agent
@@ -223,6 +241,7 @@ This process is repeated up to ~10 times per week, with volumes ranging from 200
 - PVC-first addressing with raw path fallback
 - Resume capability for cross-cluster transfers
 - Integration and end-to-end test infrastructure with ephemeral Kind clusters and testcontainers
+- Local development environment with single-command provisioning using Kind clusters and docker-compose for interactive development, testing, and demos
 
 ### 4.2 Out of Scope
 
@@ -338,7 +357,7 @@ Agents **MUST** report available PVCs (with size, storage class, and node affini
 
 #### Real-Time Progress
 
-- [ ] `p1` - **ID**: `cpt-katapult-fr-realtime-progress`
+- [x] `p1` - **ID**: `cpt-katapult-fr-realtime-progress`
 
 The system **MUST** provide real-time transfer progress including bytes transferred, total bytes, transfer speed, and ETA. For object-store-staged transfers, the system **MUST** additionally report chunk-level progress (N/M chunks completed).
 
@@ -348,7 +367,7 @@ The system **MUST** provide real-time transfer progress including bytes transfer
 
 #### Transfer History and Audit
 
-- [ ] `p2` - **ID**: `cpt-katapult-fr-transfer-history`
+- [x] `p2` - **ID**: `cpt-katapult-fr-transfer-history`
 
 The system **MUST** maintain a transfer audit log recording who initiated each transfer, when, source, destination, transfer strategy used, outcome, duration, and bytes transferred.
 
@@ -358,7 +377,7 @@ The system **MUST** maintain a transfer audit log recording who initiated each t
 
 #### Metrics and Logging
 
-- [ ] `p2` - **ID**: `cpt-katapult-fr-metrics-logging`
+- [x] `p2` - **ID**: `cpt-katapult-fr-metrics-logging`
 
 The system **MUST** expose Prometheus metrics for transfer throughput, duration, success/failure rates, and agent health. The system **MUST** produce structured JSON logs with per-transfer correlation IDs from both agents and control plane.
 
@@ -368,7 +387,7 @@ The system **MUST** expose Prometheus metrics for transfer throughput, duration,
 
 #### Actionable Error Messages
 
-- [ ] `p1` - **ID**: `cpt-katapult-fr-actionable-errors`
+- [x] `p1` - **ID**: `cpt-katapult-fr-actionable-errors`
 
 All transfer failures **MUST** surface actionable error messages that include the failure reason and a suggested remediation (e.g., "Destination disk full: 2.1 TB available, 5.3 TB required").
 
@@ -568,13 +587,75 @@ The system **MUST** provide end-to-end tests that deploy the full Katapult stack
 
 **Actors**: `cpt-katapult-actor-infra-engineer`
 
+### 5.10 Local Development Environment
+
+#### Local Environment Provisioning
+
+- [ ] `p2` - **ID**: `cpt-katapult-fr-local-env-provision`
+
+The system **MUST** provide a single-command setup (e.g., `make local-up`) that provisions the full Katapult stack locally: Kind cluster(s), PostgreSQL, MinIO, control plane, agent(s), and Web UI. The provisioned environment **MUST** be fully functional for interactive development, testing, and demos without requiring manual configuration steps.
+
+**Rationale**: Developers need a frictionless way to run the full Katapult stack locally. A multi-step manual setup discourages testing and slows feature development.
+
+**Actors**: `cpt-katapult-actor-developer`
+
+#### Single-Cluster Mode
+
+- [ ] `p2` - **ID**: `cpt-katapult-fr-local-single-cluster`
+
+The local environment **MUST** support a single-cluster mode as the default: one Kind cluster with one control-plane node and multiple worker nodes. Agents **MUST** be deployed as a DaemonSet on worker nodes. The environment **MUST** enable real intra-cluster data movement between worker nodes to validate streaming transfer flows.
+
+**Rationale**: Most development and testing work targets intra-cluster transfers. Multiple worker nodes are required to test real data movement between nodes, not just loopback transfers.
+
+**Actors**: `cpt-katapult-actor-developer`
+
+#### Multi-Cluster Mode
+
+- [ ] `p2` - **ID**: `cpt-katapult-fr-local-multi-cluster`
+
+The local environment **MUST** support a multi-cluster mode: two Kind clusters simulating a cross-cluster topology with MinIO as the S3-compatible staging area. The environment **MUST** enable testing the full S3-staged transfer path (upload from source cluster → MinIO → download to destination cluster).
+
+**Rationale**: Cross-cluster transfers are a core Katapult capability. Developers need to test the full S3-staged transfer path locally without access to real multi-cluster infrastructure.
+
+**Actors**: `cpt-katapult-actor-developer`
+
+#### Seed Data
+
+- [ ] `p2` - **ID**: `cpt-katapult-fr-local-seed-data`
+
+The local environment **MUST** pre-populate realistic seed data: PVCs with sample data on worker nodes, pre-registered agents, and sample transfer history. The seed data **MUST** provide a ready-to-use environment where a developer can immediately initiate a transfer without manual data setup.
+
+**Rationale**: A prepared environment with realistic data eliminates boilerplate setup time and enables immediate feature testing and demos.
+
+**Actors**: `cpt-katapult-actor-developer`
+
+#### Fast Rebuild Cycle
+
+- [ ] `p2` - **ID**: `cpt-katapult-fr-local-fast-rebuild`
+
+The local environment **MUST** support rebuilding and redeploying individual components (control plane, agent) without reprovisioning the entire environment. A code change to a single component **MUST** be testable by rebuilding and redeploying only that component.
+
+**Rationale**: Reprovisioning Kind clusters and all services for every code change destroys the development feedback loop. Incremental rebuilds keep iteration fast.
+
+**Actors**: `cpt-katapult-actor-developer`
+
+#### Environment Teardown
+
+- [ ] `p2` - **ID**: `cpt-katapult-fr-local-env-teardown`
+
+The system **MUST** provide a single-command cleanup (e.g., `make local-down`) that removes all local resources: Kind clusters, docker containers, docker networks, and persistent volumes. Teardown **MUST** leave no orphaned resources.
+
+**Rationale**: Clean teardown prevents resource leaks on developer machines and ensures a fresh start for the next session.
+
+**Actors**: `cpt-katapult-actor-developer`
+
 ## 6. Non-Functional Requirements
 
 ### 6.1 NFR Inclusions
 
 #### Transfer Throughput — Intra-Cluster
 
-- [ ] `p1` - **ID**: `cpt-katapult-nfr-throughput-intra`
+- [x] `p1` - **ID**: `cpt-katapult-nfr-throughput-intra`
 
 The system **MUST** transfer a 5 TB volume between nodes in the same cluster in under 30 minutes on a 10 Gbps network.
 
@@ -584,7 +665,7 @@ The system **MUST** transfer a 5 TB volume between nodes in the same cluster in 
 
 #### Transfer Throughput — Cross-Cluster
 
-- [ ] `p1` - **ID**: `cpt-katapult-nfr-throughput-cross`
+- [x] `p1` - **ID**: `cpt-katapult-nfr-throughput-cross`
 
 The system **MUST** transfer a 5 TB volume between clusters within 12 hours including upload and download phases, with chunk-level resume on failure.
 
@@ -594,7 +675,7 @@ The system **MUST** transfer a 5 TB volume between clusters within 12 hours incl
 
 #### Bounded Failure Cost
 
-- [ ] `p1` - **ID**: `cpt-katapult-nfr-bounded-failure`
+- [x] `p1` - **ID**: `cpt-katapult-nfr-bounded-failure`
 
 The worst-case wasted work on failure **MUST** be bounded: at most one chunk (default 4 GiB) for cross-cluster transfers, or one pipeline run for intra-cluster transfers. A failure **MUST NOT** waste the entire multi-hour transfer.
 
@@ -604,7 +685,7 @@ The worst-case wasted work on failure **MUST** be bounded: at most one chunk (de
 
 #### Transfer Initiation Time
 
-- [ ] `p1` - **ID**: `cpt-katapult-nfr-initiation-time`
+- [x] `p1` - **ID**: `cpt-katapult-nfr-initiation-time`
 
 A transfer **MUST** be initiatable (from UI or CLI interaction to transfer starting) in under 2 minutes.
 
@@ -614,7 +695,7 @@ A transfer **MUST** be initiatable (from UI or CLI interaction to transfer start
 
 #### Progress Reporting Latency
 
-- [ ] `p2` - **ID**: `cpt-katapult-nfr-progress-latency`
+- [x] `p2` - **ID**: `cpt-katapult-nfr-progress-latency`
 
 Transfer progress updates **MUST** be visible in the Web UI within 5 seconds of the agent reporting them.
 
@@ -651,6 +732,16 @@ Unit tests **MUST** complete in under 60 seconds. Integration tests (tier 2, `//
 **Threshold**: Unit <60s; Integration <5min; E2E <15min
 
 **Rationale**: Fast feedback loops are critical for developer productivity. Slow tests become ignored tests. Tiered execution times allow CI pipelines to gate merges on fast tests while running E2E on a slower cadence.
+
+#### Local Environment Startup Time
+
+- [ ] `p2` - **ID**: `cpt-katapult-nfr-local-env-startup`
+
+The local environment in single-cluster mode **MUST** be ready for use (first transfer-ready state) within 3 minutes of running the setup command.
+
+**Threshold**: <3 minutes from `make local-up` to transfer-ready state (agents registered, seed data loaded, Web UI accessible)
+
+**Rationale**: Developers expect near-instant environments. A setup that takes longer than a few minutes discourages use and pushes developers toward manual, incomplete setups.
 
 ### 6.2 NFR Exclusions
 
@@ -844,6 +935,34 @@ Unit tests **MUST** complete in under 60 seconds. Integration tests (tier 2, `//
 **Alternative Flows**:
 - **Agent unreachable during cancellation**: Controller cleans up resources it controls (services, CRD status); orphaned agent-side resources cleaned up when agent reconnects
 
+### 8.2 Local Development
+
+#### Developer Local Workflow
+
+- [ ] `p2` - **ID**: `cpt-katapult-usecase-local-dev-workflow`
+
+**Actor**: `cpt-katapult-actor-developer`
+
+**Preconditions**:
+- Docker is running on the developer's machine
+- Kind and kubectl are installed
+
+**Main Flow**:
+1. Developer runs `make local-up` (single-cluster mode by default)
+2. Kind cluster is created with control-plane node and multiple worker nodes
+3. PostgreSQL and MinIO are started via docker-compose
+4. Control plane and agents are built, deployed, and registered
+5. Seed data is loaded (sample PVCs with data on worker nodes)
+6. Developer opens Web UI or runs CLI commands to perform test transfers
+7. Developer modifies code, rebuilds affected component, and redeploys without full reprovisioning
+8. Developer runs `make local-down` to clean up all resources
+
+**Postconditions**: All Kind clusters, docker containers, networks, and volumes are removed. No orphaned resources remain.
+
+**Alternative Flows**:
+- **Multi-cluster mode**: Developer runs `make local-up MODE=multi` to provision two Kind clusters with MinIO as S3 staging for cross-cluster transfer testing
+- **Rebuild single component**: Developer runs `make local-rebuild COMPONENT=control-plane` to rebuild and redeploy only the control plane
+
 ## 9. Acceptance Criteria
 
 - [ ] A transfer is initiatable from Web UI or CLI in under 2 minutes with no manual SSH, rclone installation, or temporary service creation
@@ -858,6 +977,9 @@ Unit tests **MUST** complete in under 60 seconds. Integration tests (tier 2, `//
 - [ ] CRD controller reconciliation is validated via envtest without a real cluster
 - [ ] Cross-component interactions (gRPC, API, S3) are validated via testcontainers in CI
 - [ ] A full intra-cluster PVC transfer completes successfully in an ephemeral Kind cluster with data integrity verified
+- [ ] A developer can run `make local-up` and have a fully functional Katapult environment (control plane, agents, MinIO, PostgreSQL) ready within 3 minutes
+- [ ] An intra-cluster PVC transfer between worker nodes completes successfully in the local single-cluster environment
+- [ ] A cross-cluster PVC transfer via MinIO completes successfully in the local multi-cluster environment
 
 ## 10. Dependencies
 
@@ -871,8 +993,9 @@ Unit tests **MUST** complete in under 60 seconds. Integration tests (tier 2, `//
 | pv-migrate | Immediate stopgap tool to reduce manual effort while Katapult is built | p2 |
 | controller-runtime/envtest | Local etcd + API server for CRD controller integration tests | p1 |
 | testcontainers-go | Container-based integration test infrastructure (PostgreSQL, MinIO) | p1 |
-| Kind | Ephemeral Kubernetes clusters for E2E testing | p2 |
-| MinIO | S3-compatible object store for testing cross-cluster transfers | p2 |
+| Kind | Ephemeral Kubernetes clusters for E2E testing and local development environment | p2 |
+| MinIO | S3-compatible object store for testing cross-cluster transfers and local development | p2 |
+| docker-compose | Orchestration for local development supporting services (PostgreSQL, MinIO) | p2 |
 
 ## 11. Assumptions
 

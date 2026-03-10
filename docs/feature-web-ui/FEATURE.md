@@ -18,6 +18,7 @@
   - [Validate Transfer Parameters](#validate-transfer-parameters)
   - [Render Transfer Progress](#render-transfer-progress)
 - [4. States (CDSL)](#4-states-cdsl)
+  - [Not Applicable](#not-applicable)
 - [5. Definitions of Done](#5-definitions-of-done)
   - [Transfer Management Dashboard](#transfer-management-dashboard)
   - [Agent Overview and PVC Browser](#agent-overview-and-pvc-browser)
@@ -232,6 +233,8 @@ Design principles applied:
 6. [ ] - `p2` - **RETURN** rendered progress state - `inst-return-progress`
 
 ## 4. States (CDSL)
+
+### Not Applicable
 
 Not applicable. The Web UI is a stateless client-side application. All entity lifecycle state (Transfer, Agent) is managed by the API Server and Transfer Orchestrator. The UI renders state from API responses but does not own or manage state transitions.
 
