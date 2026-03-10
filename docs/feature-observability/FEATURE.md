@@ -321,21 +321,21 @@ All transfer failures **MUST** surface actionable error messages that include th
 
 ## 6. Acceptance Criteria
 
-- [ ] SSE progress stream delivers bytes_transferred, speed, ETA, and percent_complete for an active intra-cluster transfer
-- [ ] SSE progress stream delivers chunk-level progress (chunks_completed/chunks_total) for an active S3-staged transfer
-- [ ] Progress updates are visible via SSE within 5 seconds of the agent reporting them
-- [ ] SSE stream returns a final state snapshot and closes cleanly when a transfer reaches a terminal state
-- [ ] SSE connection reconnects and receives current state immediately without data loss
-- [ ] Transfer event timeline records state transitions (Pending, Validating, Transferring, Completed/Failed/Cancelled) with timestamps
-- [ ] Transfer event timeline records who initiated the transfer, source, destination, strategy, outcome, duration, and bytes transferred
-- [ ] Prometheus /metrics endpoint exposes transfer counters (total, active, by status, by strategy)
-- [ ] Prometheus /metrics endpoint exposes transfer duration histogram and transfer bytes total
-- [ ] Prometheus /metrics endpoint exposes agent health gauges (healthy, unhealthy, disconnected counts)
-- [ ] Agent /metrics endpoint exposes mover-level metrics (bytes transferred, speed, errors by category)
-- [ ] Structured JSON logs include a per-transfer correlation ID on both control plane and agent
-- [ ] Failed transfers surface actionable error messages with failure reason and remediation hint
-- [ ] Disk-full errors include available and required space in the error message
-- [ ] Permission errors include the file path and current permissions in the error message
+- [x] SSE progress stream delivers bytes_transferred, speed, ETA, and percent_complete for an active intra-cluster transfer
+- [x] SSE progress stream delivers chunk-level progress (chunks_completed/chunks_total) for an active S3-staged transfer
+- [x] Progress updates are visible via SSE within 5 seconds of the agent reporting them
+- [x] SSE stream returns a final state snapshot and closes cleanly when a transfer reaches a terminal state
+- [x] SSE connection reconnects and receives current state immediately without data loss
+- [x] Transfer event timeline records state transitions (Pending, Validating, Transferring, Completed/Failed/Cancelled) with timestamps
+- [x] Transfer event timeline records who initiated the transfer, source, destination, strategy, outcome, duration, and bytes transferred
+- [x] Prometheus /metrics endpoint exposes transfer counters (total, active, by status, by strategy)
+- [x] Prometheus /metrics endpoint exposes transfer duration histogram and transfer bytes total
+- [x] Prometheus /metrics endpoint exposes agent health gauges (healthy, unhealthy, disconnected counts)
+- [x] Agent /metrics endpoint exposes mover-level metrics (bytes transferred, speed, errors by category)
+- [x] Structured JSON logs include a per-transfer correlation ID on both control plane and agent
+- [x] Failed transfers surface actionable error messages with failure reason and remediation hint
+- [x] Disk-full errors include available and required space in the error message
+- [x] Permission errors include the file path and current permissions in the error message
 
 ## 7. Non-Applicable Domains
 

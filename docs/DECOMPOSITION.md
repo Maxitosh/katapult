@@ -293,7 +293,7 @@ Katapult's DESIGN is decomposed into eight features organized around the hub-and
 
 ### 2.5 [Observability & Monitoring](feature-observability/) ⏳ MEDIUM
 
-- [ ] `p2` - **ID**: `cpt-katapult-feature-observability`
+- [x] `p2` - **ID**: `cpt-katapult-feature-observability`
 
 - **Purpose**: Provide real-time transfer progress, structured logging, Prometheus metrics, transfer history, and actionable error messages so operators can monitor and troubleshoot transfers.
 
@@ -313,10 +313,10 @@ Katapult's DESIGN is decomposed into eight features organized around the hub-and
 
 - **Requirements Covered**:
 
-  - [ ] `p1` - `cpt-katapult-fr-realtime-progress`
-  - [ ] `p2` - `cpt-katapult-fr-transfer-history`
-  - [ ] `p2` - `cpt-katapult-fr-metrics-logging`
-  - [ ] `p1` - `cpt-katapult-fr-actionable-errors`
+  - [x] `p1` - `cpt-katapult-fr-realtime-progress`
+  - [x] `p2` - `cpt-katapult-fr-transfer-history`
+  - [x] `p2` - `cpt-katapult-fr-metrics-logging`
+  - [x] `p1` - `cpt-katapult-fr-actionable-errors`
 
 - **Design Principles Covered**:
 
@@ -349,11 +349,11 @@ Katapult's DESIGN is decomposed into eight features organized around the hub-and
 
 - **NFR Covered**:
 
-  - [ ] `p2` - `cpt-katapult-nfr-progress-latency`
-  - [ ] `p1` - `cpt-katapult-nfr-throughput-intra`
-  - [ ] `p1` - `cpt-katapult-nfr-throughput-cross`
-  - [ ] `p1` - `cpt-katapult-nfr-bounded-failure`
-  - [ ] `p1` - `cpt-katapult-nfr-initiation-time`
+  - [x] `p2` - `cpt-katapult-nfr-progress-latency`
+  - [x] `p1` - `cpt-katapult-nfr-throughput-intra`
+  - [x] `p1` - `cpt-katapult-nfr-throughput-cross`
+  - [x] `p1` - `cpt-katapult-nfr-bounded-failure`
+  - [x] `p1` - `cpt-katapult-nfr-initiation-time`
 
 ### 2.6 [Web UI](feature-web-ui/) ⏳ MEDIUM
 

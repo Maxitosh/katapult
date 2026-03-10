@@ -31,10 +31,10 @@
 
 <!-- /toc -->
 
-- [x] `p2` - **ID**: `cpt-katapult-featstatus-integration-tests`
+- [ ] `p2` - **ID**: `cpt-katapult-featstatus-integration-tests`
 ## 1. Feature Context
 
-- [x] `p2` - `cpt-katapult-feature-integration-tests`
+- [ ] `p2` - `cpt-katapult-feature-integration-tests`
 
 ### 1.1 Overview
 
@@ -89,15 +89,15 @@ Success criteria: All three tiers pass in CI, controller tests run without a rea
 - CRD installation fails (malformed YAML) — test reports schema validation error
 
 **Steps**:
-1. [ ] - `p2` - Developer invokes `go test -tags integration ./internal/crd/...` - `inst-invoke-controller-tests`
-2. [ ] - `p2` - Algorithm: initialize envtest environment using `cpt-katapult-algo-integration-tests-envtest-setup` - `inst-setup-envtest`
-3. [ ] - `p2` - Test creates a VolumeTransfer CR with source and destination PVC references - `inst-create-vt-cr`
-4. [ ] - `p2` - Reconciler processes the CR and updates status subresource (phase, conditions, progress) - `inst-reconcile-cr`
-5. [ ] - `p2` - Test asserts status fields match expected values for each reconciliation cycle - `inst-assert-status`
-6. [ ] - `p2` - Test deletes VolumeTransfer CR and verifies finalizer runs cleanup logic - `inst-verify-finalizer`
-7. [ ] - `p2` - **IF** any assertion fails **RETURN** test failure with diff of expected vs actual status - `inst-check-assertion`
-8. [ ] - `p2` - Algorithm: tear down envtest environment (stop API server, etcd) - `inst-teardown-envtest`
-9. [ ] - `p2` - **RETURN** test results (pass/fail count, duration) - `inst-return-controller-results`
+1. [x] - `p2` - Developer invokes `go test -tags integration ./internal/crd/...` - `inst-invoke-controller-tests`
+2. [x] - `p2` - Algorithm: initialize envtest environment using `cpt-katapult-algo-integration-tests-envtest-setup` - `inst-setup-envtest`
+3. [x] - `p2` - Test creates a VolumeTransfer CR with source and destination PVC references - `inst-create-vt-cr`
+4. [x] - `p2` - Reconciler processes the CR and updates status subresource (phase, conditions, progress) - `inst-reconcile-cr`
+5. [x] - `p2` - Test asserts status fields match expected values for each reconciliation cycle - `inst-assert-status`
+6. [x] - `p2` - Test deletes VolumeTransfer CR and verifies finalizer runs cleanup logic - `inst-verify-finalizer`
+7. [x] - `p2` - **IF** any assertion fails **RETURN** test failure with diff of expected vs actual status - `inst-check-assertion`
+8. [x] - `p2` - Algorithm: tear down envtest environment (stop API server, etcd) - `inst-teardown-envtest`
+9. [x] - `p2` - **RETURN** test results (pass/fail count, duration) - `inst-return-controller-results`
 
 ### Run Component Integration Tests
 
@@ -114,20 +114,20 @@ Success criteria: All three tiers pass in CI, controller tests run without a rea
 - gRPC connection refused — test reports connection error with port/address
 
 **Steps**:
-1. [ ] - `p2` - Developer invokes `go test -tags integration ./...` - `inst-invoke-component-tests`
-2. [ ] - `p2` - Algorithm: start test containers using `cpt-katapult-algo-integration-tests-testcontainers-setup` - `inst-setup-containers`
-3. [ ] - `p2` - Test starts gRPC server with real PostgreSQL repository and MinIO credential manager - `inst-start-grpc-server`
-4. [ ] - `p2` - Test exercises agent registration flow: agent client connects, sends Register RPC, verifies agent appears in database - `inst-test-registration`
-5. [ ] - `p2` - Test exercises heartbeat flow: agent sends Heartbeat RPC, verifies last_seen timestamp updates - `inst-test-heartbeat`
-6. [ ] - `p2` - Test exercises transfer lifecycle: API creates transfer, orchestrator transitions through states, progress is reported - `inst-test-transfer-lifecycle`
-7. [ ] - `p2` - Test exercises S3-staged path: upload chunks to MinIO, download and verify content matches - `inst-test-s3-path`
-8. [ ] - `p2` - **IF** any assertion fails **RETURN** test failure with component and operation context - `inst-check-component-assertion`
-9. [ ] - `p2` - Algorithm: stop and remove all test containers - `inst-teardown-containers`
-10. [ ] - `p2` - **RETURN** test results (pass/fail count, duration) - `inst-return-component-results`
+1. [x] - `p2` - Developer invokes `go test -tags integration ./...` - `inst-invoke-component-tests`
+2. [x] - `p2` - Algorithm: start test containers using `cpt-katapult-algo-integration-tests-testcontainers-setup` - `inst-setup-containers`
+3. [x] - `p2` - Test starts gRPC server with real PostgreSQL repository and MinIO credential manager - `inst-start-grpc-server`
+4. [x] - `p2` - Test exercises agent registration flow: agent client connects, sends Register RPC, verifies agent appears in database - `inst-test-registration`
+5. [x] - `p2` - Test exercises heartbeat flow: agent sends Heartbeat RPC, verifies last_seen timestamp updates - `inst-test-heartbeat`
+6. [x] - `p2` - Test exercises transfer lifecycle: API creates transfer, orchestrator transitions through states, progress is reported - `inst-test-transfer-lifecycle`
+7. [x] - `p2` - Test exercises S3-staged path: upload chunks to MinIO, download and verify content matches - `inst-test-s3-path`
+8. [x] - `p2` - **IF** any assertion fails **RETURN** test failure with component and operation context - `inst-check-component-assertion`
+9. [x] - `p2` - Algorithm: stop and remove all test containers - `inst-teardown-containers`
+10. [x] - `p2` - **RETURN** test results (pass/fail count, duration) - `inst-return-component-results`
 
 ### Run E2E Tests
 
-- [x] `p2` - **ID**: `cpt-katapult-flow-integration-tests-run-e2e-tests`
+- [ ] `p2` - **ID**: `cpt-katapult-flow-integration-tests-run-e2e-tests`
 
 **Actor**: `cpt-katapult-actor-infra-engineer`
 
@@ -140,20 +140,20 @@ Success criteria: All three tiers pass in CI, controller tests run without a rea
 - Transfer times out — test reports transfer state and last progress update
 
 **Steps**:
-1. [ ] - `p2` - Developer invokes `go test -tags e2e ./test/e2e/...` - `inst-invoke-e2e-tests`
-2. [ ] - `p2` - Algorithm: create Kind cluster and deploy Katapult using `cpt-katapult-algo-integration-tests-kind-lifecycle` - `inst-setup-kind`
-3. [ ] - `p2` - Test creates source PVC and populates it with known test data (deterministic content for checksum) - `inst-create-source-pvc`
-4. [ ] - `p2` - Test creates destination PVC (empty) - `inst-create-dest-pvc`
-5. [ ] - `p2` - Test initiates intra-cluster streaming transfer via REST API - `inst-initiate-intra-transfer`
-6. [ ] - `p2` - Test polls transfer status until completion or timeout - `inst-poll-transfer-status`
+1. [x] - `p2` - Developer invokes `go test -tags e2e ./test/e2e/...` - `inst-invoke-e2e-tests`
+2. [x] - `p2` - Algorithm: create Kind cluster and deploy Katapult using `cpt-katapult-algo-integration-tests-kind-lifecycle` - `inst-setup-kind`
+3. [x] - `p2` - Test creates source PVC and populates it with known test data (deterministic content for checksum) - `inst-create-source-pvc`
+4. [x] - `p2` - Test creates destination PVC (empty) - `inst-create-dest-pvc`
+5. [x] - `p2` - Test initiates intra-cluster streaming transfer via REST API - `inst-initiate-intra-transfer`
+6. [x] - `p2` - Test polls transfer status until completion or timeout - `inst-poll-transfer-status`
 7. [ ] - `p2` - Algorithm: verify data integrity using `cpt-katapult-algo-integration-tests-data-integrity-check` - `inst-verify-intra-integrity`
-8. [ ] - `p2` - Test initiates cross-cluster S3-staged transfer via MinIO sidecar - `inst-initiate-cross-transfer`
+8. [x] - `p2` - Test initiates cross-cluster S3-staged transfer via MinIO sidecar - `inst-initiate-cross-transfer`
 9. [ ] - `p2` - Algorithm: verify data integrity using `cpt-katapult-algo-integration-tests-data-integrity-check` - `inst-verify-cross-integrity`
-10. [ ] - `p2` - Test initiates a transfer and immediately cancels it, verifies destination PVC is cleaned up and transfer state is CANCELLED - `inst-test-cancellation`
-11. [ ] - `p2` - Test executes CLI commands (`katapult transfer list`, `katapult agent list`) against live cluster and verifies output - `inst-test-cli`
-12. [ ] - `p2` - **IF** any assertion fails **RETURN** test failure with cluster state snapshot (pod logs, events) - `inst-check-e2e-assertion`
-13. [ ] - `p2` - Algorithm: delete Kind cluster and clean up resources using `cpt-katapult-algo-integration-tests-kind-lifecycle` - `inst-teardown-kind`
-14. [ ] - `p2` - **RETURN** test results (pass/fail count, duration, cluster resource usage) - `inst-return-e2e-results`
+10. [x] - `p2` - Test initiates a transfer and immediately cancels it, verifies destination PVC is cleaned up and transfer state is CANCELLED - `inst-test-cancellation`
+11. [x] - `p2` - Test executes CLI commands (`katapult transfer list`, `katapult agent list`) against live cluster and verifies output - `inst-test-cli`
+12. [x] - `p2` - **IF** any assertion fails **RETURN** test failure with cluster state snapshot (pod logs, events) - `inst-check-e2e-assertion`
+13. [x] - `p2` - Algorithm: delete Kind cluster and clean up resources using `cpt-katapult-algo-integration-tests-kind-lifecycle` - `inst-teardown-kind`
+14. [x] - `p2` - **RETURN** test results (pass/fail count, duration, cluster resource usage) - `inst-return-e2e-results`
 
 ## 3. Processes / Business Logic (CDSL)
 
@@ -166,13 +166,13 @@ Success criteria: All three tiers pass in CI, controller tests run without a rea
 **Output**: Running envtest environment with configured controller manager, or error if setup fails
 
 **Steps**:
-1. [ ] - `p2` - Resolve envtest binary assets path from `KUBEBUILDER_ASSETS` environment variable - `inst-resolve-envtest-assets`
-2. [ ] - `p2` - **IF** envtest assets not found **RETURN** error with download instructions (`setup-envtest use`) - `inst-check-envtest-assets`
-3. [ ] - `p2` - Start envtest environment (local etcd + API server) with CRD install options pointing to VolumeTransfer CRD YAML - `inst-start-envtest`
-4. [ ] - `p2` - Create controller manager with the envtest REST config - `inst-create-manager`
-5. [ ] - `p2` - Register VolumeTransfer reconciler with the manager - `inst-register-reconciler`
-6. [ ] - `p2` - Start manager in background goroutine with cancellable context - `inst-start-manager`
-7. [ ] - `p2` - **RETURN** envtest environment handle, manager cancel function, and Kubernetes client - `inst-return-envtest`
+1. [x] - `p2` - Resolve envtest binary assets path from `KUBEBUILDER_ASSETS` environment variable - `inst-resolve-envtest-assets`
+2. [x] - `p2` - **IF** envtest assets not found **RETURN** error with download instructions (`setup-envtest use`) - `inst-check-envtest-assets`
+3. [x] - `p2` - Start envtest environment (local etcd + API server) with CRD install options pointing to VolumeTransfer CRD YAML - `inst-start-envtest`
+4. [x] - `p2` - Create controller manager with the envtest REST config - `inst-create-manager`
+5. [x] - `p2` - Register VolumeTransfer reconciler with the manager - `inst-register-reconciler`
+6. [x] - `p2` - Start manager in background goroutine with cancellable context - `inst-start-manager`
+7. [x] - `p2` - **RETURN** envtest environment handle, manager cancel function, and Kubernetes client - `inst-return-envtest`
 
 ### Testcontainers Orchestration
 
@@ -183,12 +183,12 @@ Success criteria: All three tiers pass in CI, controller tests run without a rea
 **Output**: Running containers with connection strings (PostgreSQL DSN, MinIO endpoint + credentials), or error if startup fails
 
 **Steps**:
-1. [ ] - `p2` - Start PostgreSQL container using `testcontainers-go` with health check wait strategy - `inst-start-postgres`
-2. [ ] - `p2` - Run database migrations against PostgreSQL container using migration files from `internal/store/postgres/migrations/` - `inst-run-migrations`
-3. [ ] - `p2` - Start MinIO container with preconfigured bucket and access credentials - `inst-start-minio`
-4. [ ] - `p2` - **IF** any container fails to start **RETURN** error with container logs - `inst-check-container-start`
-5. [ ] - `p2` - Seed test fixtures into PostgreSQL (agents, transfers) using fixture builder helpers - `inst-seed-fixtures`
-6. [ ] - `p2` - **RETURN** PostgreSQL DSN, MinIO endpoint, MinIO access key, MinIO secret key - `inst-return-container-config`
+1. [x] - `p2` - Start PostgreSQL container using `testcontainers-go` with health check wait strategy - `inst-start-postgres`
+2. [x] - `p2` - Run database migrations against PostgreSQL container using migration files from `internal/store/postgres/migrations/` - `inst-run-migrations`
+3. [x] - `p2` - Start MinIO container with preconfigured bucket and access credentials - `inst-start-minio`
+4. [x] - `p2` - **IF** any container fails to start **RETURN** error with container logs - `inst-check-container-start`
+5. [x] - `p2` - Seed test fixtures into PostgreSQL (agents, transfers) using fixture builder helpers - `inst-seed-fixtures`
+6. [x] - `p2` - **RETURN** PostgreSQL DSN, MinIO endpoint, MinIO access key, MinIO secret key - `inst-return-container-config`
 
 ### Kind Cluster Lifecycle
 
@@ -199,15 +199,15 @@ Success criteria: All three tiers pass in CI, controller tests run without a rea
 **Output**: Running Kind cluster with deployed Katapult stack (control plane pod ready, agent DaemonSet running), or error if setup fails
 
 **Steps**:
-1. [ ] - `p2` - Create Kind cluster with specified node count and cluster name using `sigs.k8s.io/kind` Go API - `inst-create-kind-cluster`
-2. [ ] - `p2` - Load pre-built Katapult container images into Kind nodes (`kind load docker-image`) - `inst-load-images`
-3. [ ] - `p2` - Install local-path-provisioner for dynamic PVC provisioning - `inst-install-provisioner`
-4. [ ] - `p2` - Deploy MinIO into the cluster for S3-staged transfer tests - `inst-deploy-minio`
-5. [ ] - `p2` - Apply Katapult Kubernetes manifests (control plane Deployment, agent DaemonSet, CRDs, RBAC) - `inst-apply-manifests`
-6. [ ] - `p2` - Wait for control plane pod to reach Ready state with timeout - `inst-wait-control-plane`
-7. [ ] - `p2` - Wait for agent DaemonSet pods to reach Ready state on all nodes with timeout - `inst-wait-agents`
-8. [ ] - `p2` - **IF** any pod fails to reach Ready **RETURN** error with pod status, events, and container logs - `inst-check-pod-ready`
-9. [ ] - `p2` - **RETURN** kubeconfig path, cluster name, and cleanup function - `inst-return-kind-config`
+1. [x] - `p2` - Create Kind cluster with specified node count and cluster name using `sigs.k8s.io/kind` Go API - `inst-create-kind-cluster`
+2. [x] - `p2` - Load pre-built Katapult container images into Kind nodes (`kind load docker-image`) - `inst-load-images`
+3. [x] - `p2` - Install local-path-provisioner for dynamic PVC provisioning - `inst-install-provisioner`
+4. [x] - `p2` - Deploy MinIO into the cluster for S3-staged transfer tests - `inst-deploy-minio`
+5. [x] - `p2` - Apply Katapult Kubernetes manifests (control plane Deployment, agent DaemonSet, CRDs, RBAC) - `inst-apply-manifests`
+6. [x] - `p2` - Wait for control plane pod to reach Ready state with timeout - `inst-wait-control-plane`
+7. [x] - `p2` - Wait for agent DaemonSet pods to reach Ready state on all nodes with timeout - `inst-wait-agents`
+8. [x] - `p2` - **IF** any pod fails to reach Ready **RETURN** error with pod status, events, and container logs - `inst-check-pod-ready`
+9. [x] - `p2` - **RETURN** kubeconfig path, cluster name, and cleanup function - `inst-return-kind-config`
 
 ### Data Integrity Verification
 
@@ -218,10 +218,10 @@ Success criteria: All three tiers pass in CI, controller tests run without a rea
 **Output**: Pass with matching checksums, or fail with checksum mismatch details
 
 **Steps**:
-1. [ ] - `p2` - Create a temporary pod mounting the source PVC and compute SHA-256 checksum of all files (recursive, sorted) - `inst-checksum-source`
-2. [ ] - `p2` - Create a temporary pod mounting the destination PVC and compute SHA-256 checksum of all files (recursive, sorted) - `inst-checksum-dest`
-3. [ ] - `p2` - **IF** source checksum equals destination checksum **RETURN** pass - `inst-compare-checksums`
-4. [ ] - `p2` - **ELSE** **RETURN** fail with source checksum, destination checksum, and first differing file path - `inst-return-mismatch`
+1. [x] - `p2` - Create a temporary pod mounting the source PVC and compute SHA-256 checksum of all files (recursive, sorted) - `inst-checksum-source`
+2. [x] - `p2` - Create a temporary pod mounting the destination PVC and compute SHA-256 checksum of all files (recursive, sorted) - `inst-checksum-dest`
+3. [x] - `p2` - **IF** source checksum equals destination checksum **RETURN** pass - `inst-compare-checksums`
+4. [x] - `p2` - **ELSE** **RETURN** fail with source checksum, destination checksum, and first differing file path - `inst-return-mismatch`
 
 ## 4. States (CDSL)
 
@@ -270,7 +270,7 @@ The system **MUST** provide testcontainers-based integration tests that validate
 
 ### E2E Tests
 
-- [x] `p2` - **ID**: `cpt-katapult-dod-integration-tests-e2e-tests`
+- [ ] `p2` - **ID**: `cpt-katapult-dod-integration-tests-e2e-tests`
 
 The system **MUST** provide Kind-based end-to-end tests that deploy the full Katapult stack and execute real PVC transfers. Tests **MUST** verify: intra-cluster streaming transfer with data integrity validation (SHA-256 checksum comparison), cross-cluster S3-staged transfer via MinIO, transfer cancellation with resource cleanup verification, and CLI command execution against a live cluster. Tests **MUST** use `//go:build e2e` build tag.
 
@@ -331,8 +331,8 @@ The system **MUST** provide shared test helper packages reusable across tiers: f
 
 - [x] Controller integration tests validate VolumeTransfer CRD reconciliation, status updates, and finalizer behavior without requiring a real Kubernetes cluster
 - [x] Component integration tests validate gRPC agent registration/heartbeat, API-to-orchestrator transfer lifecycle, and S3-staged transfer path via MinIO using testcontainers
-- [x] E2E tests deploy full Katapult stack in Kind and complete an intra-cluster streaming transfer with SHA-256 data integrity verification
-- [x] E2E tests complete a cross-cluster S3-staged transfer via MinIO in Kind
+- [ ] E2E tests deploy full Katapult stack in Kind and complete an intra-cluster streaming transfer with SHA-256 data integrity verification
+- [ ] E2E tests complete a cross-cluster S3-staged transfer via MinIO in Kind
 - [x] E2E tests verify transfer cancellation cleans up destination resources
 - [x] CLI commands (`katapult transfer list`, `katapult agent list`) execute successfully against a live Kind cluster
 - [x] Test tiers execute independently: `go test ./...` runs only unit tests, `-tags integration` adds component tests, `-tags e2e` runs E2E tests

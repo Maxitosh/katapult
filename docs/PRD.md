@@ -357,7 +357,7 @@ Agents **MUST** report available PVCs (with size, storage class, and node affini
 
 #### Real-Time Progress
 
-- [ ] `p1` - **ID**: `cpt-katapult-fr-realtime-progress`
+- [x] `p1` - **ID**: `cpt-katapult-fr-realtime-progress`
 
 The system **MUST** provide real-time transfer progress including bytes transferred, total bytes, transfer speed, and ETA. For object-store-staged transfers, the system **MUST** additionally report chunk-level progress (N/M chunks completed).
 
@@ -367,7 +367,7 @@ The system **MUST** provide real-time transfer progress including bytes transfer
 
 #### Transfer History and Audit
 
-- [ ] `p2` - **ID**: `cpt-katapult-fr-transfer-history`
+- [x] `p2` - **ID**: `cpt-katapult-fr-transfer-history`
 
 The system **MUST** maintain a transfer audit log recording who initiated each transfer, when, source, destination, transfer strategy used, outcome, duration, and bytes transferred.
 
@@ -377,7 +377,7 @@ The system **MUST** maintain a transfer audit log recording who initiated each t
 
 #### Metrics and Logging
 
-- [ ] `p2` - **ID**: `cpt-katapult-fr-metrics-logging`
+- [x] `p2` - **ID**: `cpt-katapult-fr-metrics-logging`
 
 The system **MUST** expose Prometheus metrics for transfer throughput, duration, success/failure rates, and agent health. The system **MUST** produce structured JSON logs with per-transfer correlation IDs from both agents and control plane.
 
@@ -387,7 +387,7 @@ The system **MUST** expose Prometheus metrics for transfer throughput, duration,
 
 #### Actionable Error Messages
 
-- [ ] `p1` - **ID**: `cpt-katapult-fr-actionable-errors`
+- [x] `p1` - **ID**: `cpt-katapult-fr-actionable-errors`
 
 All transfer failures **MUST** surface actionable error messages that include the failure reason and a suggested remediation (e.g., "Destination disk full: 2.1 TB available, 5.3 TB required").
 
@@ -655,7 +655,7 @@ The system **MUST** provide a single-command cleanup (e.g., `make local-down`) t
 
 #### Transfer Throughput — Intra-Cluster
 
-- [ ] `p1` - **ID**: `cpt-katapult-nfr-throughput-intra`
+- [x] `p1` - **ID**: `cpt-katapult-nfr-throughput-intra`
 
 The system **MUST** transfer a 5 TB volume between nodes in the same cluster in under 30 minutes on a 10 Gbps network.
 
@@ -665,7 +665,7 @@ The system **MUST** transfer a 5 TB volume between nodes in the same cluster in 
 
 #### Transfer Throughput — Cross-Cluster
 
-- [ ] `p1` - **ID**: `cpt-katapult-nfr-throughput-cross`
+- [x] `p1` - **ID**: `cpt-katapult-nfr-throughput-cross`
 
 The system **MUST** transfer a 5 TB volume between clusters within 12 hours including upload and download phases, with chunk-level resume on failure.
 
@@ -675,7 +675,7 @@ The system **MUST** transfer a 5 TB volume between clusters within 12 hours incl
 
 #### Bounded Failure Cost
 
-- [ ] `p1` - **ID**: `cpt-katapult-nfr-bounded-failure`
+- [x] `p1` - **ID**: `cpt-katapult-nfr-bounded-failure`
 
 The worst-case wasted work on failure **MUST** be bounded: at most one chunk (default 4 GiB) for cross-cluster transfers, or one pipeline run for intra-cluster transfers. A failure **MUST NOT** waste the entire multi-hour transfer.
 
@@ -685,7 +685,7 @@ The worst-case wasted work on failure **MUST** be bounded: at most one chunk (de
 
 #### Transfer Initiation Time
 
-- [ ] `p1` - **ID**: `cpt-katapult-nfr-initiation-time`
+- [x] `p1` - **ID**: `cpt-katapult-nfr-initiation-time`
 
 A transfer **MUST** be initiatable (from UI or CLI interaction to transfer starting) in under 2 minutes.
 
@@ -695,7 +695,7 @@ A transfer **MUST** be initiatable (from UI or CLI interaction to transfer start
 
 #### Progress Reporting Latency
 
-- [ ] `p2` - **ID**: `cpt-katapult-nfr-progress-latency`
+- [x] `p2` - **ID**: `cpt-katapult-nfr-progress-latency`
 
 Transfer progress updates **MUST** be visible in the Web UI within 5 seconds of the agent reporting them.
 
