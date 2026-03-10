@@ -11,13 +11,14 @@
   - [2.5 Observability & Monitoring ⏳ MEDIUM](#25-observability-monitoring-medium)
   - [2.6 Web UI ⏳ MEDIUM](#26-web-ui-medium)
   - [2.7 Integration Tests ⏳ MEDIUM](#27-integration-tests-medium)
+  - [2.8 Local Development Environment ⏳ MEDIUM](#28-local-development-environment-medium)
 - [3. Feature Dependencies](#3-feature-dependencies)
 
 <!-- /toc -->
 
 ## 1. Overview
 
-Katapult's DESIGN is decomposed into seven features organized around the hub-and-spoke architecture. The decomposition groups design elements by functional cohesion — the agent subsystem (spoke), transfer orchestration (hub core), security layer, API surface, observability, web UI, and test infrastructure — while minimizing cross-feature dependencies.
+Katapult's DESIGN is decomposed into eight features organized around the hub-and-spoke architecture. The decomposition groups design elements by functional cohesion — the agent subsystem (spoke), transfer orchestration (hub core), security layer, API surface, observability, web UI, test infrastructure, and local development environment — while minimizing cross-feature dependencies.
 
 **Decomposition Strategy**:
 - Features grouped by functional cohesion around architectural boundaries
@@ -465,6 +466,69 @@ Katapult's DESIGN is decomposed into seven features organized around the hub-and
 
   - [ ] `p2` - `cpt-katapult-nfr-test-execution-time`
 
+### 2.8 [Local Development Environment](feature-local-dev-env/) ⏳ MEDIUM
+
+- [ ] `p2` - **ID**: `cpt-katapult-feature-local-dev-env`
+
+- **Purpose**: Provide a single-command local development environment that provisions the full Katapult stack (Kind clusters, PostgreSQL, MinIO, control plane, agents, Web UI) for interactive development, testing, and demos.
+
+- **Depends On**: `cpt-katapult-feature-agent-system`, `cpt-katapult-feature-transfer-engine`, `cpt-katapult-feature-api-cli`, `cpt-katapult-feature-web-ui`
+
+- **Scope**:
+  - Single-command environment provisioning (`make local-up`) and teardown (`make local-down`)
+  - Single-cluster mode: Kind cluster with 1 control-plane node + multiple worker nodes for intra-cluster transfer testing
+  - Multi-cluster mode: 2 Kind clusters with MinIO as S3 staging for cross-cluster transfer testing
+  - Supporting service orchestration via docker-compose (PostgreSQL, MinIO)
+  - Seed data provisioning: PVCs with sample data, pre-registered agents, sample transfer history
+  - Incremental rebuild: rebuild and redeploy individual components without full reprovisioning
+  - Makefile targets for all local environment operations
+
+- **Out of scope**:
+  - CI/CD pipeline integration (separate from Test Harness)
+  - Production deployment tooling (Helm charts, Kustomize)
+  - Automated test execution (Test Harness responsibility)
+
+- **Requirements Covered**:
+
+  - [ ] `p2` - `cpt-katapult-fr-local-env-provision`
+  - [ ] `p2` - `cpt-katapult-fr-local-single-cluster`
+  - [ ] `p2` - `cpt-katapult-fr-local-multi-cluster`
+  - [ ] `p2` - `cpt-katapult-fr-local-seed-data`
+  - [ ] `p2` - `cpt-katapult-fr-local-fast-rebuild`
+  - [ ] `p2` - `cpt-katapult-fr-local-env-teardown`
+
+- **Design Principles Covered**:
+
+  None unique to this feature.
+
+- **Design Constraints Covered**:
+
+  None unique to this feature.
+
+- **Domain Model Entities**:
+  - Transfer (seed data)
+  - Agent (seed data)
+  - PVCInfo (seed data)
+
+- **Design Components**:
+
+  - [ ] `p2` - `cpt-katapult-component-local-dev-env`
+
+- **API**:
+  - Deploys and exercises all existing API endpoints and gRPC services (no new endpoints)
+
+- **Sequences**:
+
+  None unique; the local environment enables executing existing sequences (`cpt-katapult-seq-intra-transfer`, `cpt-katapult-seq-cross-transfer`, `cpt-katapult-seq-agent-registration`).
+
+- **Data**:
+
+  None unique; uses existing tables populated with seed data.
+
+- **NFR Covered**:
+
+  - [ ] `p2` - `cpt-katapult-nfr-local-env-startup`
+
 ---
 
 ## 3. Feature Dependencies
@@ -475,12 +539,17 @@ cpt-katapult-feature-agent-system
     ├─→ cpt-katapult-feature-transfer-engine
     │       ↓
     │       ├─→ cpt-katapult-feature-observability ─┐
-    │       │                                        ├─→ cpt-katapult-feature-web-ui
-    │       └─→ cpt-katapult-feature-api-cli ───────┘
-    │               ↓
-    │               └─→ cpt-katapult-feature-integration-tests
-    │                       ↑               ↑
-    └─→ cpt-katapult-feature-security ─→ cpt-katapult-feature-api-cli
+    │       │                                        ├─→ cpt-katapult-feature-web-ui ──┐
+    │       └─→ cpt-katapult-feature-api-cli ───────┘        │                         │
+    │               ↓                                         │                         │
+    │               └─→ cpt-katapult-feature-integration-tests│                         │
+    │                       ↑               ↑                 │                         │
+    └─→ cpt-katapult-feature-security ─→ cpt-katapult-feature-api-cli                  │
+                                                                                        │
+    cpt-katapult-feature-local-dev-env ←────────────────────────────────────────────────┘
+        ↑               ↑               ↑               ↑
+        │               │               │               │
+    agent-system  transfer-engine   api-cli          web-ui
 ```
 
 **Dependency Rationale**:
@@ -495,3 +564,4 @@ cpt-katapult-feature-agent-system
 - `cpt-katapult-feature-transfer-engine` and `cpt-katapult-feature-security` are independent of each other and can be developed in parallel after Agent System
 - `cpt-katapult-feature-observability` and `cpt-katapult-feature-api-cli` can be developed in parallel after Transfer Engine (API also needs Security)
 - `cpt-katapult-feature-integration-tests` requires `cpt-katapult-feature-agent-system`, `cpt-katapult-feature-transfer-engine`, and `cpt-katapult-feature-api-cli`: tests validate agent registration, transfer lifecycle, CRD reconciliation, and API endpoints — all three features must exist to test against
+- `cpt-katapult-feature-local-dev-env` requires `cpt-katapult-feature-agent-system`, `cpt-katapult-feature-transfer-engine`, `cpt-katapult-feature-api-cli`, and `cpt-katapult-feature-web-ui`: the local environment deploys the full stack — agents, control plane, API, and Web UI must all exist to provision a functional local environment
