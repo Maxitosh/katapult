@@ -50,6 +50,7 @@ export function cancelTransfer(id: string): Promise<void> {
   return apiDelete<void>(`/transfers/${id}`);
 }
 
-export function getTransferEvents(id: string): Promise<TransferEvent[]> {
-  return apiGet<TransferEvent[]>(`/transfers/${id}/events`);
+export async function getTransferEvents(id: string): Promise<TransferEvent[]> {
+  const resp = await apiGet<{ events: TransferEvent[] }>(`/transfers/${id}/events`);
+  return resp.events;
 }
