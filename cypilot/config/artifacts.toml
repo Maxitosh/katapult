@@ -3,26 +3,80 @@
 [[systems]]
 name = "Katapult"
 slug = "katapult"
-kit = "cypilot-sdlc"
-artifacts = [
-  { path = "docs/PRD.md", kind = "PRD" },
-  { path = "docs/DESIGN.md", kind = "DESIGN" },
-  { path = "docs/DECOMPOSITION.md", kind = "DECOMPOSITION" },
-  { path = "docs/ADR/0001-hub-and-spoke-architecture.md", kind = "ADR" },
-  { path = "docs/ADR/0002-multi-strategy-transfers.md", kind = "ADR" },
-  { path = "docs/ADR/0003-use-go.md", kind = "ADR" },
-  { path = "docs/ADR/0004-grpc-agent-communication.md", kind = "ADR" },
-  { path = "docs/ADR/0005-database-authoritative-projection.md", kind = "ADR" },
-  { path = "docs/feature-agent-system/FEATURE.md", kind = "FEATURE", traceability = "FULL" },
-  { path = "docs/feature-transfer-engine/FEATURE.md", kind = "FEATURE", traceability = "FULL" },
-  { path = "docs/feature-api-cli/FEATURE.md", kind = "FEATURE", traceability = "FULL" },
-  { path = "docs/feature-observability/FEATURE.md", kind = "FEATURE", traceability = "FULL" },
-  { path = "docs/feature-web-ui/FEATURE.md", kind = "FEATURE", traceability = "FULL" },
-  { path = "docs/feature-integration-tests/FEATURE.md", kind = "FEATURE", traceability = "FULL" },
-  { path = "docs/feature-local-dev-env/FEATURE.md", kind = "FEATURE", traceability = "FULL" },
-]
-codebase = [
-  { path = "katapult/", feature = "docs/feature-agent-system/FEATURE.md" },
-  { path = "web/", feature = "docs/feature-web-ui/FEATURE.md" },
-]
+kit = "sdlc"
 children = []
+
+[[systems.artifacts]]
+path = "docs/PRD.md"
+kind = "PRD"
+
+[[systems.artifacts]]
+path = "docs/DESIGN.md"
+kind = "DESIGN"
+
+[[systems.artifacts]]
+path = "docs/DECOMPOSITION.md"
+kind = "DECOMPOSITION"
+
+[[systems.artifacts]]
+path = "docs/ADR/0001-hub-and-spoke-architecture.md"
+kind = "ADR"
+
+[[systems.artifacts]]
+path = "docs/ADR/0002-multi-strategy-transfers.md"
+kind = "ADR"
+
+[[systems.artifacts]]
+path = "docs/ADR/0003-use-go.md"
+kind = "ADR"
+
+[[systems.artifacts]]
+path = "docs/ADR/0004-grpc-agent-communication.md"
+kind = "ADR"
+
+[[systems.artifacts]]
+path = "docs/ADR/0005-database-authoritative-projection.md"
+kind = "ADR"
+
+[[systems.artifacts]]
+path = "docs/feature-agent-system/FEATURE.md"
+kind = "FEATURE"
+traceability = "FULL"
+
+[[systems.artifacts]]
+path = "docs/feature-transfer-engine/FEATURE.md"
+kind = "FEATURE"
+traceability = "FULL"
+
+[[systems.artifacts]]
+path = "docs/feature-api-cli/FEATURE.md"
+kind = "FEATURE"
+traceability = "FULL"
+
+[[systems.artifacts]]
+path = "docs/feature-observability/FEATURE.md"
+kind = "FEATURE"
+traceability = "FULL"
+
+[[systems.artifacts]]
+path = "docs/feature-web-ui/FEATURE.md"
+kind = "FEATURE"
+traceability = "FULL"
+
+[[systems.artifacts]]
+path = "docs/feature-integration-tests/FEATURE.md"
+kind = "FEATURE"
+traceability = "FULL"
+
+[[systems.artifacts]]
+path = "docs/feature-local-dev-env/FEATURE.md"
+kind = "FEATURE"
+traceability = "FULL"
+
+[[systems.codebase]]
+path = "katapult/"
+feature = "docs/feature-agent-system/FEATURE.md"
+
+[[systems.codebase]]
+path = "web/"
+feature = "docs/feature-web-ui/FEATURE.md"

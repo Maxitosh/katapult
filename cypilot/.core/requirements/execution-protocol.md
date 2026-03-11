@@ -70,7 +70,7 @@ Common steps shared by `{cypilot_path}/.core/workflows/generate.md` and `{cypilo
 
 **Common violations**:
 1. ❌ Not reading this protocol first
-2. ❌ Not running `cypilot info`
+2. ❌ Not running `cpt info`
 3. ❌ Not following invoked workflow rules (`{cypilot_path}/.core/workflows/generate.md` / `{cypilot_path}/.core/workflows/analyze.md`)
 
 **Recovery**:
@@ -95,7 +95,7 @@ Common steps shared by `{cypilot_path}/.core/workflows/generate.md` and `{cypilo
 **Recovery protocol**:
 
 1. Detect compaction from conversation summary signals
-2. Re-run: `cypilot info` + load required specs from `{cypilot_path}/.gen/AGENTS.md`
+2. Re-run: `cpt info` + load required specs from `{cypilot_path}/.gen/AGENTS.md`
 3. Announce restored context (workflow, target, loaded specs), then continue
 
 **Agent MUST NOT**:
@@ -194,7 +194,7 @@ ALWAYS propose initialization WHEN RELAXED mode:
 ```
 Cypilot not configured
 
-→ `cypilot init` to initialize for this project
+→ `cpt init` to initialize for this project
 ```
 
 ALWAYS proceed as normal coding assistant WHEN user declines initialization
@@ -230,7 +230,7 @@ python3 {cypilot_path}/.core/skills/cypilot/scripts/cypilot.py info --root {PROJ
 
 **If FOUND**: Load `{cypilot_path}/.gen/AGENTS.md` for navigation rules
 
-**If NOT_FOUND**: Suggest running `cypilot init` to bootstrap
+**If NOT_FOUND**: Suggest running `cpt init` to bootstrap
 
 ---
 
@@ -423,7 +423,7 @@ For each line matching: ALWAYS open and follow `{spec}` WHEN Cypilot follows rul
 **If cypilot not found**:
 ```
 ⚠️ Cypilot not configured
-→ Run `cypilot init` to initialize
+→ Run `cpt init` to initialize
 ```
 **Action**: STOP.
 
@@ -444,7 +444,7 @@ For each line matching: ALWAYS open and follow `{spec}` WHEN Cypilot follows rul
 ⚠️ Rules file not found: {KITS_PATH}
 → Verify kit package exists at {KIT_BASE}
 → Check artifacts.toml kits section has correct path
-→ Run `cypilot init --force` to regenerate
+→ Run `cpt init --force` to regenerate
 ```
 **Action**: STOP.
 
@@ -466,7 +466,7 @@ For each line matching: ALWAYS open and follow `{spec}` WHEN Cypilot follows rul
 ⚠️ System not found: {system_name}
 → Registered systems: {list from artifacts.toml}
 → Options:
-  1. Register system via `cypilot init`
+  1. Register system via `cpt init`
   2. Use existing system
   3. Continue in RELAXED mode (no rules enforcement)
 ```
@@ -498,7 +498,7 @@ For each line matching: ALWAYS open and follow `{spec}` WHEN Cypilot follows rul
 
 ### Discovery (DI)
 
-- DI.1 (YES): Cypilot discovery executed (`cypilot info`)
+- DI.1 (YES): Cypilot discovery executed (`cpt info`)
 - DI.2 (YES): `artifacts.toml` read/understood (agent lists systems/rules)
 - DI.3 (YES): Rules directories explored (agent lists artifact kinds)
 

@@ -13,6 +13,7 @@ Use CypilotContext.load() to initialize on CLI startup.
 @cpt-flow:cpt-cypilot-flow-core-infra-cli-invocation:p1
 """
 
+# @cpt-begin:cpt-cypilot-algo-core-infra-context-loading:p1:inst-ctx-datamodel
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Set
@@ -20,14 +21,13 @@ from typing import Dict, List, Optional, Set
 from .artifacts_meta import ArtifactsMeta, Kit, load_artifacts_meta
 from .constraints import KitConstraints, error, load_constraints_toml
 
-
 @dataclass
 class LoadedKit:
     """A kit with all its templates loaded."""
     kit: Kit
     templates: Dict[str, object]  # kind -> template-like (unused)
     constraints: Optional[KitConstraints] = None
-
+    resource_bindings: Optional[Dict[str, str]] = None
 
 @dataclass
 class CypilotContext:
@@ -39,6 +39,7 @@ class CypilotContext:
     kits: Dict[str, LoadedKit]  # kit_id -> LoadedKit
     registered_systems: Set[str]
     _errors: List[Dict[str, object]] = field(default_factory=list)
+    # @cpt-end:cpt-cypilot-algo-core-infra-context-loading:p1:inst-ctx-datamodel
 
     @classmethod
     def load(cls, start_path: Optional[Path] = None) -> Optional["CypilotContext"]:
@@ -80,9 +81,36 @@ class CypilotContext:
             kit_root = (adapter_dir / kit_path_str).resolve()
             if not kit_root.is_dir():
                 kit_root = (project_root / kit_path_str).resolve()
+            # @cpt-begin:cpt-cypilot-algo-core-infra-context-loading:p1:inst-ctx-load-resource-bindings
+            # Load resource bindings from core.toml (manifest-driven kits)
+            rb: Optional[Dict[str, str]] = None
+            _resolved_bindings: Dict[str, Path] = {}
+            try:
+                from .manifest import resolve_resource_bindings as _resolve_rb
+                cfg_dir = adapter_dir / "config"
+                if not cfg_dir.is_dir():
+                    cfg_dir = adapter_dir
+                _resolved_bindings = _resolve_rb(cfg_dir, kit_id, adapter_dir)
+                if _resolved_bindings:
+                    rb = {k: str(v) for k, v in _resolved_bindings.items()}
+            except Exception as exc:
+                import sys
+                sys.stderr.write(f"context: failed to load resource bindings for kit {kit_id}: {exc}\n")
+            # @cpt-end:cpt-cypilot-algo-core-infra-context-loading:p1:inst-ctx-load-resource-bindings
+
             kit_constraints: Optional[KitConstraints] = None
             constraints_errs: List[str] = []
-            if kit_root.is_dir():
+            # @cpt-begin:cpt-cypilot-algo-core-infra-context-loading:p1:inst-constraints-from-binding
+            # For manifest-driven kits, resolve constraints path from resource bindings
+            _constraints_root = kit_root
+            if _resolved_bindings and "constraints" in _resolved_bindings:
+                _constraints_path = _resolved_bindings["constraints"]
+                if _constraints_path.is_file():
+                    _constraints_root = _constraints_path.parent
+            # @cpt-end:cpt-cypilot-algo-core-infra-context-loading:p1:inst-constraints-from-binding
+            if _constraints_root.is_dir():
+                kit_constraints, constraints_errs = load_constraints_toml(_constraints_root)
+            elif kit_root.is_dir():
                 kit_constraints, constraints_errs = load_constraints_toml(kit_root)
             if constraints_errs:
                 constraints_path = (kit_root / "constraints.toml").resolve()
@@ -95,7 +123,7 @@ class CypilotContext:
                     kit=kit_id,
                 ))
 
-            kits[kit_id] = LoadedKit(kit=kit, templates=templates, constraints=kit_constraints)
+            kits[kit_id] = LoadedKit(kit=kit, templates=templates, constraints=kit_constraints, resource_bindings=rb)
         # @cpt-end:cpt-cypilot-algo-core-infra-context-loading:p1:inst-ctx-load-kits
 
         # @cpt-begin:cpt-cypilot-algo-core-infra-context-loading:p1:inst-ctx-expand-autodetect
@@ -177,6 +205,7 @@ class CypilotContext:
         # @cpt-end:cpt-cypilot-algo-core-infra-context-loading:p1:inst-ctx-return
         return ctx
 
+    # @cpt-begin:cpt-cypilot-algo-core-infra-context-loading:p1:inst-ctx-globals
     def get_known_id_kinds(self) -> Set[str]:
         kinds: Set[str] = set()
         for loaded_kit in self.kits.values():
@@ -189,21 +218,17 @@ class CypilotContext:
                         kinds.add(str(c.kind).strip().lower())
         return kinds
 
-
 # Global context instance (set by CLI on startup)
 _global_context: Optional[CypilotContext] = None
-
 
 def get_context() -> Optional[CypilotContext]:
     """Get the global Cypilot context."""
     return _global_context
 
-
 def set_context(ctx: Optional[CypilotContext]) -> None:
     """Set the global Cypilot context."""
     global _global_context
     _global_context = ctx
-
 
 def ensure_context(start_path: Optional[Path] = None) -> Optional[CypilotContext]:
     """Ensure context is loaded, loading if necessary."""
@@ -212,7 +237,6 @@ def ensure_context(start_path: Optional[Path] = None) -> Optional[CypilotContext
         _global_context = CypilotContext.load(start_path)
     return _global_context
 
-
 __all__ = [
     "CypilotContext",
     "LoadedKit",
@@ -220,3 +244,4 @@ __all__ = [
     "set_context",
     "ensure_context",
 ]
+# @cpt-end:cpt-cypilot-algo-core-infra-context-loading:p1:inst-ctx-globals

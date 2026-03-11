@@ -153,7 +153,7 @@ Auto-configuration scans a brownfield project and generates project-specific age
    - `cypilot.py info` reports `specs: []` or no specs directory
    - Existing source code directories detected
 2. **Manual**: User invokes `cypilot auto-config` or asks Cypilot to configure itself
-3. **Rescan**: User invokes `cypilot init --rescan` or asks to reconfigure
+3. **Rescan**: User invokes `cpt init --rescan` or asks to reconfigure
 
 ### Pre-checks
 

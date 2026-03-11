@@ -30,6 +30,7 @@ to v3 (blueprint-based, artifacts.toml, three-directory layout).
 @cpt-dod:cpt-cypilot-dod-v2-v3-migration-json-to-toml:p1
 """
 
+# @cpt-begin:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-migrate-datamodel
 import argparse
 import json
 import os
@@ -43,6 +44,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from ..utils import toml_utils
 from ..utils.files import find_project_root
+from ..utils.ui import ui
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -72,7 +74,6 @@ INSTALL_TYPE_GIT_CLONE = "GIT_CLONE"
 INSTALL_TYPE_PLAIN_DIR = "PLAIN_DIR"
 INSTALL_TYPE_ABSENT = "ABSENT"
 
-
 def _strip_none(obj: Any) -> Any:
     """Recursively strip None values from dicts/lists (TOML has no null)."""
     if isinstance(obj, dict):
@@ -80,7 +81,6 @@ def _strip_none(obj: Any) -> Any:
     if isinstance(obj, list):
         return [_strip_none(v) for v in obj if v is not None]
     return obj
-
 
 # String enum → bool mapping used by v2 constraints.json
 _ENUM_TO_BOOL: Dict[str, Optional[bool]] = {
@@ -90,7 +90,6 @@ _ENUM_TO_BOOL: Dict[str, Optional[bool]] = {
     "allowed": None,    # allowed but not required → omit key
     "optional": None,
 }
-
 
 def _coerce_enum_bools(obj: Any) -> Any:
     """Recursively convert v2 string enums to booleans in constraint data.
@@ -115,7 +114,6 @@ def _coerce_enum_bools(obj: Any) -> Any:
         return [_coerce_enum_bools(v) for v in obj]
     return obj
 
-
 def _convert_constraints_v2_to_v3(v2_data: Dict[str, Any]) -> Dict[str, Any]:
     """Convert v2 constraints.json format to v3 constraints.toml format.
 
@@ -133,7 +131,7 @@ def _convert_constraints_v2_to_v3(v2_data: Dict[str, Any]) -> Dict[str, Any]:
             if isinstance(kind_data, dict) and "toc" not in kind_data:
                 kind_data["toc"] = False
     return _strip_none({"artifacts": coerced})
-
+# @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-migrate-datamodel
 
 # ===========================================================================
 # WP1: V2 Detection
@@ -182,7 +180,6 @@ def detect_core_install_type(project_root: Path, core_path: str) -> str:
     # @cpt-begin:cpt-cypilot-algo-v2-v3-migration-detect-core-install-type:p1:inst-return-plain-dir
     return INSTALL_TYPE_PLAIN_DIR
     # @cpt-end:cpt-cypilot-algo-v2-v3-migration-detect-core-install-type:p1:inst-return-plain-dir
-
 
 def detect_v2(project_root: Path) -> Dict[str, Any]:
     """Detect a v2 Cypilot installation in the project.
@@ -286,7 +283,6 @@ def detect_v2(project_root: Path) -> Dict[str, Any]:
     return result
     # @cpt-end:cpt-cypilot-algo-v2-v3-migration-detect-v2:p1:inst-return-detected
 
-
 # ===========================================================================
 # WP2: Backup & Cleanup
 # ===========================================================================
@@ -372,7 +368,7 @@ def backup_v2_state(
     return backup_dir
     # @cpt-end:cpt-cypilot-algo-v2-v3-migration-backup-v2-state:p1:inst-return-backup-path
 
-
+# @cpt-begin:cpt-cypilot-algo-v2-v3-migration-backup-v2-state:p1:inst-backup-rollback
 def _rollback(project_root: Path, backup_dir: Path) -> Dict[str, Any]:
     """Restore v2 state from backup. Returns rollback result."""
     manifest_file = backup_dir / "manifest.json"
@@ -409,7 +405,7 @@ def _rollback(project_root: Path, backup_dir: Path) -> Dict[str, Any]:
         "restored": restored,
         "errors": errors,
     }
-
+# @cpt-end:cpt-cypilot-algo-v2-v3-migration-backup-v2-state:p1:inst-backup-rollback
 
 def cleanup_core_path(
     project_root: Path,
@@ -434,13 +430,17 @@ def cleanup_core_path(
     if core_install_type == INSTALL_TYPE_SUBMODULE:
         try:
             # @cpt-begin:cpt-cypilot-algo-v2-v3-migration-cleanup-core-path:p1:inst-submodule-deinit
-            subprocess.run(
+            deinit = subprocess.run(
                 ["git", "submodule", "deinit", "-f", core_path],
                 cwd=str(project_root),
                 capture_output=True,
                 text=True,
-                check=True,
+                check=False,
             )
+            if deinit.returncode != 0:
+                warnings.append(
+                    f"git submodule deinit failed (non-fatal): {deinit.stderr.strip()}"
+                )
             # @cpt-end:cpt-cypilot-algo-v2-v3-migration-cleanup-core-path:p1:inst-submodule-deinit
 
             # @cpt-begin:cpt-cypilot-algo-v2-v3-migration-cleanup-core-path:p1:inst-git-rm-submodule
@@ -502,12 +502,12 @@ def cleanup_core_path(
                 "warnings": warnings,
             }
             # @cpt-end:cpt-cypilot-algo-v2-v3-migration-cleanup-core-path:p1:inst-return-submodule-ok
-        except subprocess.CalledProcessError as e:
+        except OSError as e:
             return {
                 "success": False,
                 "cleaned_type": INSTALL_TYPE_SUBMODULE,
-                "warnings": [],
-                "error": f"Submodule cleanup failed: {e.stderr or e.stdout or str(e)}",
+                "warnings": warnings,
+                "error": f"Submodule cleanup failed: {e}",
             }
     # @cpt-end:cpt-cypilot-algo-v2-v3-migration-cleanup-core-path:p1:inst-cleanup-submodule
 
@@ -557,7 +557,7 @@ def cleanup_core_path(
         }
     # @cpt-end:cpt-cypilot-algo-v2-v3-migration-cleanup-core-path:p1:inst-cleanup-plain-dir
 
-
+# @cpt-begin:cpt-cypilot-algo-v2-v3-migration-cleanup-core-path:p1:inst-cleanup-helpers
 def _remove_gitmodule_entry(content: str, path: str) -> str:
     """Remove a [submodule "..."] block from .gitmodules content by path."""
     lines = content.splitlines(True)
@@ -587,7 +587,7 @@ def _remove_gitmodule_entry(content: str, path: str) -> str:
                 continue
         result.append(line)
     return "".join(result)
-
+# @cpt-end:cpt-cypilot-algo-v2-v3-migration-cleanup-core-path:p1:inst-cleanup-helpers
 
 # ===========================================================================
 # WP3: Config Conversion
@@ -671,7 +671,7 @@ def convert_artifacts_registry(
     }
     # @cpt-end:cpt-cypilot-algo-v2-v3-migration-convert-artifacts-registry:p1:inst-return-artifacts-result
 
-
+# @cpt-begin:cpt-cypilot-algo-v2-v3-migration-convert-artifacts-registry:p1:inst-convert-system-helper
 def _convert_system(
     system: Dict[str, Any],
     kit_slug_map: Dict[str, str],
@@ -717,7 +717,7 @@ def _convert_system(
         v3["children"] = [_convert_system(c, kit_slug_map) for c in children]
 
     return v3
-
+# @cpt-end:cpt-cypilot-algo-v2-v3-migration-convert-artifacts-registry:p1:inst-convert-system-helper
 
 def convert_agents_md(
     project_root: Path,
@@ -781,7 +781,6 @@ def convert_agents_md(
     }
     # @cpt-end:cpt-cypilot-algo-v2-v3-migration-convert-agents-md:p1:inst-return-agents-result
 
-
 def generate_core_toml(
     project_root: Path,
     v2_systems: List[Dict[str, Any]],
@@ -802,8 +801,8 @@ def generate_core_toml(
     # @cpt-begin:cpt-cypilot-algo-v2-v3-migration-generate-core-toml:p1:inst-derive-project-info
     project_name = project_root.name
     slug_parts = re.split(r'[-_\s]+', project_name.lower())
-    pascal_name = "".join(w.capitalize() for w in slug_parts) if slug_parts else "Unnamed"
-    project_slug = "-".join(slug_parts) if slug_parts else "unnamed"
+    _pascal_name = "".join(w.capitalize() for w in slug_parts) if slug_parts else "Unnamed"
+    _project_slug = "-".join(slug_parts) if slug_parts else "unnamed"
     # @cpt-end:cpt-cypilot-algo-v2-v3-migration-generate-core-toml:p1:inst-derive-project-info
 
     # @cpt-begin:cpt-cypilot-algo-v2-v3-migration-generate-core-toml:p1:inst-set-schema-version
@@ -815,24 +814,7 @@ def generate_core_toml(
     }
     # @cpt-end:cpt-cypilot-algo-v2-v3-migration-generate-core-toml:p1:inst-set-schema-version
 
-    # @cpt-begin:cpt-cypilot-algo-v2-v3-migration-generate-core-toml:p1:inst-iterate-v2-systems
-    # @cpt-begin:cpt-cypilot-algo-v2-v3-migration-generate-core-toml:p1:inst-create-system-entry
-    if v2_systems:
-        primary = v2_systems[0]
-        v2_kit = primary.get("kit", "")
-        core_data["system"] = {
-            "name": primary.get("name", pascal_name),
-            "slug": primary.get("slug", project_slug),
-            "kit": kit_slug_map.get(v2_kit, v2_kit),
-        }
-    else:
-        core_data["system"] = {
-            "name": pascal_name,
-            "slug": project_slug,
-            "kit": "cypilot-sdlc",
-        }
-    # @cpt-end:cpt-cypilot-algo-v2-v3-migration-generate-core-toml:p1:inst-create-system-entry
-    # @cpt-end:cpt-cypilot-algo-v2-v3-migration-generate-core-toml:p1:inst-iterate-v2-systems
+    # [system] section removed per ADR-0014 — system identity lives in artifacts.toml only.
 
     # @cpt-begin:cpt-cypilot-algo-v2-v3-migration-generate-core-toml:p1:inst-register-kits
     kits_registry: Dict[str, Any] = {}
@@ -857,7 +839,6 @@ def generate_core_toml(
     # @cpt-begin:cpt-cypilot-algo-v2-v3-migration-generate-core-toml:p1:inst-return-core-result
     return {"status": "created"}
     # @cpt-end:cpt-cypilot-algo-v2-v3-migration-generate-core-toml:p1:inst-return-core-result
-
 
 # ===========================================================================
 # WP4: Kit Migration
@@ -900,13 +881,23 @@ def migrate_kits(
             continue
 
         # @cpt-begin:cpt-cypilot-algo-v2-v3-migration-migrate-kits:p1:inst-copy-kit-config
+        # Copy all kit content → config/kits/{slug}/ (new model: direct file packages)
+        # Skip blueprints/ and blueprint_hashes.toml — no longer used.
         config_kit_dir.mkdir(parents=True, exist_ok=True)
-        _copy_tree_contents(v2_kit_dir, config_kit_dir)
+        for item in v2_kit_dir.iterdir():
+            if item.name in ("blueprints", "blueprint_hashes.toml", "__pycache__", ".prev"):
+                continue  # legacy artifacts — skip
+            dst = config_kit_dir / item.name
+            if item.is_dir():
+                if dst.exists():
+                    shutil.rmtree(dst)
+                shutil.copytree(item, dst)
+            else:
+                shutil.copy2(item, dst)
         # @cpt-end:cpt-cypilot-algo-v2-v3-migration-migrate-kits:p1:inst-copy-kit-config
 
         # @cpt-begin:cpt-cypilot-algo-v2-v3-migration-migrate-kits:p1:inst-convert-constraints
         # Convert constraints.json → constraints.toml in config/kits/
-        # (.gen/ is ephemeral — regenerated by cpt update)
         constraints_json = config_kit_dir / "constraints.json"
         if constraints_json.is_file():
             try:
@@ -939,6 +930,11 @@ def migrate_kits(
         # @cpt-end:cpt-cypilot-algo-v2-v3-migration-migrate-kits:p1:inst-add-migrated-kit
     # @cpt-end:cpt-cypilot-algo-v2-v3-migration-migrate-kits:p1:inst-iterate-kits-migrate
 
+    # Remove legacy kits/ directory — no longer used in new model
+    kits_user_dir = cypilot_dir / "kits"
+    if kits_user_dir.is_dir():
+        shutil.rmtree(kits_user_dir)
+
     # @cpt-begin:cpt-cypilot-algo-v2-v3-migration-migrate-kits:p1:inst-return-kits-result
     return {
         "migrated_kits": migrated_kits,
@@ -947,7 +943,7 @@ def migrate_kits(
     }
     # @cpt-end:cpt-cypilot-algo-v2-v3-migration-migrate-kits:p1:inst-return-kits-result
 
-
+# @cpt-begin:cpt-cypilot-algo-v2-v3-migration-migrate-kits:p1:inst-kits-helpers
 def _copy_tree_contents(src: Path, dst: Path) -> None:
     """Copy contents of src directory into dst (merging, not replacing)."""
     for item in src.iterdir():
@@ -958,6 +954,170 @@ def _copy_tree_contents(src: Path, dst: Path) -> None:
             shutil.copytree(item, target)
         else:
             shutil.copy2(item, target)
+
+
+_AGENT_WORKFLOW_DIRS = [
+    ".windsurf/workflows",
+    ".cursor/commands",
+    ".claude/commands",
+    ".github/prompts",
+]
+
+
+def _cleanup_old_adapter_agent_files(
+    project_root: Path,
+    adapter_path: str,
+    core_path: str,
+) -> List[str]:
+    """Remove stale v2 agent workflow/skill files after migration.
+
+    Two categories of stale files:
+
+    1. **Adapter workflow proxies** — ``cypilot-adapter.md`` files that point
+       to the old v2 ``adapter.md`` workflow (removed in v3).  Found in
+       ``.windsurf/workflows/``, ``.cursor/commands/``, ``.claude/commands/``,
+       ``.github/prompts/``, and ``.claude/skills/cypilot-adapter/``.
+
+    2. **Old adapter-dir references** — files whose ``ALWAYS open and follow``
+       target contains the old adapter directory path (e.g. ``.cypilot-adapter/``).
+
+    Other v2 proxy files (analyze, generate, pr-review, etc.) that point to
+    the old core path (e.g. ``../../.cypilot/workflows/``) are handled by
+    ``cmd_generate_agents`` which overwrites them with fresh v3 proxies.
+
+    Returns list of removed file paths (relative to project_root).
+    """
+    removed: List[str] = []
+
+    # Patterns that identify old-adapter-dir references
+    adapter_dir_patterns = [
+        f"{adapter_path}/",
+        "{cypilot_adapter_path}",
+        f"`{adapter_path}/",
+        f"`{adapter_path}`",
+    ]
+
+    def _has_adapter_dir_ref(txt: str) -> bool:
+        """File references the old adapter directory (e.g. .cypilot-adapter/)."""
+        if "ALWAYS open and follow" not in txt:
+            return False
+        for pat in adapter_dir_patterns:
+            if pat in txt:
+                return True
+        return False
+
+    def _is_adapter_workflow_proxy(path: Path) -> bool:
+        """File is a proxy to the v2 'adapter' workflow (gone in v3)."""
+        stem = path.stem.lower()
+        if stem not in ("cypilot-adapter", "adapter"):
+            return False
+        try:
+            txt = path.read_text(encoding="utf-8")
+        except Exception:
+            return False
+        # Must contain the proxy marker pointing to adapter.md
+        if "ALWAYS open and follow" not in txt:
+            return False
+        if "adapter" in txt.lower():
+            return True
+        return False
+
+    def _safe_unlink(fpath: Path) -> None:
+        try:
+            fpath.unlink()
+            removed.append(str(fpath.relative_to(project_root)))
+        except (PermissionError, FileNotFoundError, OSError):
+            pass
+
+    # 1. Scan agent workflow dirs for adapter proxies and adapter-dir refs
+    for rel_dir in _AGENT_WORKFLOW_DIRS:
+        agent_dir = project_root / rel_dir
+        if not agent_dir.is_dir():
+            continue
+        for fpath in list(agent_dir.iterdir()):
+            if not fpath.is_file():
+                continue
+            if fpath.suffix.lower() not in (".md", ".mdc"):
+                continue
+            if _is_adapter_workflow_proxy(fpath):
+                _safe_unlink(fpath)
+                continue
+            try:
+                txt = fpath.read_text(encoding="utf-8")
+            except Exception:
+                continue
+            if _has_adapter_dir_ref(txt):
+                _safe_unlink(fpath)
+
+    # 2. Remove Claude skill dirs for adapter (e.g. .claude/skills/cypilot-adapter/)
+    for skill_dir_name in ("cypilot-adapter",):
+        for agent_skills in (
+            ".claude/skills",
+            ".windsurf/skills",
+        ):
+            skill_dir = project_root / agent_skills / skill_dir_name
+            if skill_dir.is_dir():
+                try:
+                    shutil.rmtree(skill_dir)
+                    removed.append(str(skill_dir.relative_to(project_root)))
+                except (PermissionError, OSError):
+                    pass
+
+    # 3. Scan skill output files for adapter-dir refs
+    for rel_dir in [
+        ".windsurf/skills/cypilot",
+        ".cursor/rules",
+        ".claude/skills/cypilot",
+    ]:
+        agent_dir = project_root / rel_dir
+        if not agent_dir.is_dir():
+            continue
+        for fpath in list(agent_dir.iterdir()):
+            if not fpath.is_file():
+                continue
+            if fpath.suffix.lower() not in (".md", ".mdc"):
+                continue
+            try:
+                txt = fpath.read_text(encoding="utf-8")
+            except Exception:
+                continue
+            if _has_adapter_dir_ref(txt):
+                _safe_unlink(fpath)
+
+    return removed
+
+
+def _install_default_kit_from_cache(
+    cypilot_dir: Path,
+    cache_dir: Path,
+    *,
+    default_slug: str = "sdlc",
+) -> Optional[Dict[str, Any]]:
+    """Install the default kit from cache if no kits are present.
+
+    Called after migrate_kits to ensure every v3 project has at least the
+    default kit installed, even if the v2 project had no kits.
+
+    Returns update_kit result dict, or None if kit already present or
+    cache doesn't have the default kit.
+    """
+    config_kits_dir = cypilot_dir / "config" / "kits"
+    if config_kits_dir.is_dir() and any(config_kits_dir.iterdir()):
+        return None  # kits already present
+
+    cache_kit_src = cache_dir / "kits" / default_slug
+    if not cache_kit_src.is_dir():
+        return None  # cache doesn't have default kit
+
+    from .kit import update_kit
+    return update_kit(
+        default_slug,
+        cache_kit_src,
+        cypilot_dir,
+        interactive=False,
+        auto_approve=True,
+    )
+# @cpt-end:cpt-cypilot-algo-v2-v3-migration-migrate-kits:p1:inst-kits-helpers
 
 
 # ===========================================================================
@@ -1105,7 +1265,6 @@ def validate_migration(
     }
     # @cpt-end:cpt-cypilot-algo-v2-v3-migration-validate-migration:p1:inst-return-validation-result
 
-
 # ===========================================================================
 # Main migration flow
 # ===========================================================================
@@ -1193,6 +1352,8 @@ def run_migrate(
             # @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-return-cancelled
     # @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-check-user-confirm
 
+    ui.header("V2 → V3 Migration")
+
     # @cpt-begin:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-create-backup
     # @cpt-begin:cpt-cypilot-state-v2-v3-migration-status:p1:inst-transition-backed-up
     try:
@@ -1206,6 +1367,8 @@ def run_migrate(
             "state": state,
             "message": f"Backup failed: {e}",
         }
+    ui.step("Backup created")
+    ui.detail("backup", str(backup_dir))
     # @cpt-end:cpt-cypilot-state-v2-v3-migration-status:p1:inst-transition-backed-up
     # @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-create-backup
 
@@ -1224,6 +1387,9 @@ def run_migrate(
                 f"Core cleanup failed: {cleanup_result.get('error', 'unknown')}"
             )
         all_warnings.extend(cleanup_result.get("warnings", []))
+        cleaned_type = cleanup_result.get("cleaned_type", core_install_type)
+        ui.step(f"Core path cleaned up ({cleaned_type})")
+        ui.detail("removed", core_path)
         # @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-cleanup-core
 
         # Step 4: Initialize v3 directory structure using init's _copy_from_cache
@@ -1244,6 +1410,9 @@ def run_migrate(
         (core_dir / "README.md").write_text(_core_readme(), encoding="utf-8")
         (gen_dir / "README.md").write_text(_gen_readme(), encoding="utf-8")
         (config_dir / "README.md").write_text(_config_readme(), encoding="utf-8")
+        ui.step(f"V3 directory structure initialized")
+        ui.detail("target", f"{install_dir}/")
+        ui.detail("layout", f".core/ + .gen/ + config/")
 
         # @cpt-begin:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-convert-artifacts
         artifacts_json = v2.get("artifacts_json")
@@ -1254,6 +1423,11 @@ def run_migrate(
             )
             all_warnings.extend(reg_result.get("warnings", []))
             kit_slug_map = reg_result.get("kit_slug_map", {})
+            n_sys = len(v2.get("systems", []))
+            kit_names = ", ".join(kit_slug_map.values()) or "none"
+            ui.step("Artifacts registry converted")
+            ui.detail("from", "artifacts.json → config/artifacts.toml")
+            ui.detail("content", f"{n_sys} system(s), {len(kit_slug_map)} kit(s): {kit_names}")
         # @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-convert-artifacts
 
         # @cpt-begin:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-register-kit-dirs
@@ -1277,6 +1451,11 @@ def run_migrate(
                     "Add your project-specific WHEN rules here.\n",
                     encoding="utf-8",
                 )
+            ui.step("AGENTS.md — no v2 rules found, created empty config")
+        else:
+            n_rules = agents_result.get("rules_count", "?")
+            ui.step(f"AGENTS.md migrated ({n_rules} rule(s))")
+            ui.detail("from", f"{adapter_path}/AGENTS.md → config/AGENTS.md")
         # @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-convert-agents
 
         # Write config/SKILL.md if not exists
@@ -1295,6 +1474,8 @@ def run_migrate(
             kit_slug_map,
             config_dir,
         )
+        ui.step("Config generated")
+        ui.detail("files", "config/core.toml, config/SKILL.md")
         # @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-generate-core-toml
 
         # @cpt-begin:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-migrate-kits
@@ -1309,21 +1490,84 @@ def run_migrate(
             all_warnings.extend(
                 f"Kit error: {e}" for e in kit_result["errors"]
             )
+        migrated_kits = kit_result.get("migrated", list(v2_kits.keys()))
+        if migrated_kits:
+            ui.step(f"Kits migrated: {', '.join(str(k) for k in migrated_kits)}")
+            bp_count = kit_result.get("blueprint_count", 0)
+            if bp_count:
+                ui.detail("blueprints", f"{bp_count} copied to kits/")
+        else:
+            ui.step("No kits to migrate")
         # @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-migrate-kits
+
+        # Ensure default kit is installed even if v2 had no kits
+        default_kit_result = _install_default_kit_from_cache(cypilot_dir, CACHE_DIR)
+        if default_kit_result is not None:
+            default_slug = default_kit_result.get("kit", "sdlc")
+            ui.step(f"Default kit '{default_slug}' installed from cache")
+            migrated_kits = migrated_kits or []
+            if default_slug not in migrated_kits:
+                migrated_kits.append(default_slug)
+
+        # Step 8b-pre: Migrate remaining JSON configs from adapter → config/
+        # (artifacts.json and AGENTS.md are already handled above;
+        #  this catches kit-specific configs like pr-review.json)
+        adapter_dir_path = project_root / adapter_path
+        json_convert_failed: List[str] = []
+        if adapter_dir_path.is_dir():
+            v2_systems = v2.get("systems", [])
+            if v2_systems:
+                v2_kit = v2_systems[0].get("kit", "")
+                primary_slug = kit_slug_map.get(v2_kit, v2_kit) or _PR_REVIEW_DEFAULT_KIT_SLUG
+            else:
+                primary_slug = next(iter(kit_slug_map.values()), _PR_REVIEW_DEFAULT_KIT_SLUG)
+            json_converted, json_convert_failed = _migrate_adapter_json_configs(
+                adapter_dir_path, config_dir, kit_slug=primary_slug,
+            )
+            if json_converted:
+                ui.step(f"JSON configs converted: {', '.join(json_converted)}")
+            if json_convert_failed:
+                all_warnings.extend(
+                    f"JSON conversion failed: {f}" for f in json_convert_failed
+                )
 
         # Step 8b: Clean up adapter directory (already backed up)
         # @cpt-begin:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-cleanup-adapter
-        adapter_dir_path = project_root / adapter_path
+        removed_v2_files: List[str] = []
         if adapter_dir_path.is_dir():
-            shutil.rmtree(adapter_dir_path)
+            if json_convert_failed:
+                ui.warn(
+                    f"Preserving adapter dir — {len(json_convert_failed)} "
+                    f"JSON file(s) failed conversion: {json_convert_failed}"
+                )
+            else:
+                shutil.rmtree(adapter_dir_path)
+                removed_v2_files.append(f"{adapter_path}/")
         # Also remove v2 root config files
         for v2_root_file in (".cypilot-config.json", "cypilot-agents.json"):
             v2_path = project_root / v2_root_file
             if v2_path.is_file():
                 v2_path.unlink()
+                removed_v2_files.append(v2_root_file)
+        if removed_v2_files:
+            ui.step("V2 artifacts cleaned up")
+            for f in removed_v2_files:
+                ui.detail("removed", f)
         # @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-cleanup-adapter
 
-        # Step 8c: Write .gen/AGENTS.md (generated navigation rules)
+        # Step 8b2: Remove stale agent workflow/skill files that pointed to old adapter
+        adapter_removed = _cleanup_old_adapter_agent_files(project_root, adapter_path, core_path)
+        if adapter_removed:
+            ui.step(f"Old adapter agent files removed ({len(adapter_removed)})")
+            for f in adapter_removed:
+                ui.detail("removed", f)
+
+        # Step 8c: Verify config/kits/ after migration
+        # (must happen before cmd_agents so workflow proxies resolve)
+        _regenerate_gen_from_config(config_dir, gen_dir, cypilot_dir=cypilot_dir)
+        ui.step("config/kits/ verified after migration")
+
+        # Step 8d: Write .gen/AGENTS.md (generated navigation rules)
         # @cpt-begin:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-write-gen-agents
         _write_gen_agents(gen_dir, project_root.name)
         # @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-write-gen-agents
@@ -1331,17 +1575,20 @@ def run_migrate(
         # @cpt-begin:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-inject-root-agents
         from .init import _inject_root_agents
         _inject_root_agents(project_root, install_dir)
+        ui.step("Root AGENTS.md updated with managed block")
         # @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-inject-root-agents
 
         # @cpt-begin:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-regen-agent-entries
+        ui.step("Generating agent integrations")
         try:
-            from .agents import cmd_agents as _cmd_agents_fn
-            _cmd_agents_fn([
+            from .agents import cmd_generate_agents as _cmd_gen_agents_fn
+            _cmd_gen_agents_fn([
                 "--root", str(project_root),
                 "--cypilot-root", str(cypilot_dir),
+                "-y",
             ])
         except SystemExit:
-            pass  # cmd_agents may raise SystemExit on success
+            pass  # cmd_generate_agents may raise SystemExit on success
         except Exception as e:
             all_warnings.append(f"Agent entry point regeneration failed: {e}")
         # @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-regen-agent-entries
@@ -1391,9 +1638,19 @@ def run_migrate(
 
     # @cpt-begin:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-check-validation
     if not validation["passed"]:
+        issues = validation.get("issues", [])
+        ui.step(f"Validation failed ({len(issues)} issue(s))")
+        for iss in issues:
+            sev = iss.get("severity", "")
+            msg = iss.get("message", "")
+            if sev in ("CRITICAL", "HIGH"):
+                ui.warn(f"{sev}: {msg}")
+            else:
+                ui.detail(sev, msg)
         # Rollback on validation failure
         # @cpt-begin:cpt-cypilot-state-v2-v3-migration-status:p1:inst-transition-rolled-back
         rollback_result = _rollback(project_root, backup_dir)
+        ui.error("Migration rolled back due to validation failure.")
         if rollback_result.get("success"):
             state = STATE_ROLLED_BACK
             return {
@@ -1440,35 +1697,181 @@ def run_migrate(
     # @cpt-end:cpt-cypilot-state-v2-v3-migration-status:p1:inst-transition-completed
     # @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-return-success
 
+# @cpt-algo:cpt-cypilot-algo-v2-v3-migration-regenerate-gen:p1
+def _regenerate_gen_from_config(config_dir: Path, gen_dir: Path, cypilot_dir: Optional[Path] = None) -> None:
+    """Ensure config/kits/{slug}/ is populated after v2→v3 migration.
 
+    In the new direct-file-package model, kit files are ready to use —
+    no blueprint processing needed.  The migration already copies kit
+    content into config/kits/{slug}/.  Running ``cpt update`` afterwards
+    will apply any upstream changes from cache via file-level diff.
+
+    Args:
+        config_dir: config/ directory
+        gen_dir: .gen/ directory (kept for aggregate files)
+        cypilot_dir: cypilot adapter root (if None, derived from config_dir parent)
+    """
+    if cypilot_dir is None:
+        cypilot_dir = config_dir.parent
+
+    config_kits_dir = config_dir / "kits"
+    if not config_kits_dir.is_dir():
+        return
+
+    # @cpt-begin:cpt-cypilot-algo-v2-v3-migration-regenerate-gen:p1:inst-foreach-kit-regen
+    # Kit files are direct packages — no generation needed.
+    # Verify kit directories exist in config/kits/.
+    for kit_dir in sorted(config_kits_dir.iterdir()):
+        if not kit_dir.is_dir():
+            continue
+        # conf.toml should be present after migration
+        conf = kit_dir / "conf.toml"
+        if not conf.is_file():
+            sys.stderr.write(
+                f"migrate: kit '{kit_dir.name}' missing conf.toml, "
+                "run 'cpt update' to refresh from cache\n"
+            )
+    # @cpt-end:cpt-cypilot-algo-v2-v3-migration-regenerate-gen:p1:inst-foreach-kit-regen
+
+    # @cpt-begin:cpt-cypilot-algo-v2-v3-migration-regenerate-gen:p1:inst-raise-regen-errors
+    # No errors to raise — kit files are direct packages, no generation step.
+    # @cpt-end:cpt-cypilot-algo-v2-v3-migration-regenerate-gen:p1:inst-raise-regen-errors
+
+# @cpt-algo:cpt-cypilot-algo-v2-v3-migration-write-gen-agents:p1
 def _write_gen_agents(gen_dir: Path, project_name: str) -> None:
     """Write .gen/AGENTS.md with generated navigation rules."""
-    kit_id = "cypilot-sdlc"
-    artifacts_when = (
-        f"ALWAYS open and follow `{{cypilot_path}}/config/artifacts.toml` "
-        f"WHEN Cypilot uses kit `{kit_id}` for artifact kinds: "
-        f"PRD, DESIGN, DECOMPOSITION, ADR, FEATURE OR codebase"
-    )
+    # @cpt-begin:cpt-cypilot-algo-v2-v3-migration-write-gen-agents:p1:inst-compose-agents
     content = "\n".join([
         f"# Cypilot: {project_name}",
         "",
         "## Navigation Rules",
         "",
+        "ALWAYS open and follow `{cypilot_path}/config/artifacts.toml` WHEN working with artifacts or codebase",
+        "",
         "ALWAYS open and follow `{cypilot_path}/.core/schemas/artifacts.schema.json` WHEN working with artifacts.toml",
         "",
         "ALWAYS open and follow `{cypilot_path}/.core/architecture/specs/artifacts-registry.md` WHEN working with artifacts.toml",
         "",
-        artifacts_when,
-        "",
     ])
+    # @cpt-end:cpt-cypilot-algo-v2-v3-migration-write-gen-agents:p1:inst-compose-agents
+    # @cpt-begin:cpt-cypilot-algo-v2-v3-migration-write-gen-agents:p1:inst-write-agents
     gen_dir.mkdir(parents=True, exist_ok=True)
     (gen_dir / "AGENTS.md").write_text(content, encoding="utf-8")
-
+    # @cpt-end:cpt-cypilot-algo-v2-v3-migration-write-gen-agents:p1:inst-write-agents
 
 # ===========================================================================
 # Migrate Config Flow (JSON → TOML)
+# @cpt-algo:cpt-cypilot-algo-v2-v3-migration-normalize-pr-review:p1
 # ===========================================================================
 
+# @cpt-begin:cpt-cypilot-algo-v2-v3-migration-normalize-pr-review:p1:inst-pr-review-helpers
+# Key mapping for pr-review.json → pr-review.toml migration
+_PR_REVIEW_KEY_MAP = {
+    "dataDir": "data_dir",
+    "promptFile": "prompt_file",
+}
+
+# Default kit slug for pr-review migration (v2 only had sdlc)
+_PR_REVIEW_DEFAULT_KIT_SLUG = "sdlc"
+
+def _pr_review_path_rewrites(kit_slug: str = _PR_REVIEW_DEFAULT_KIT_SLUG) -> List[Tuple[str, str]]:
+    """Build path rewrite tuples for the given kit slug."""
+    target = f"config/kits/{kit_slug}/scripts/prompts/pr/"
+    return [
+        (".core/prompts/pr/", target),
+        ("prompts/pr/", target),
+    ]
+
+def _normalize_pr_review_data(
+    data: Dict[str, Any],
+    kit_slug: str = _PR_REVIEW_DEFAULT_KIT_SLUG,
+) -> Dict[str, Any]:
+    """Normalize pr-review.json keys and paths for v3 TOML format.
+
+    - Renames camelCase keys to snake_case (dataDir → data_dir, promptFile → prompt_file)
+    - Rewrites prompt file paths from v2 locations to config/kits/{kit_slug}/scripts/prompts/pr/
+    """
+    # @cpt-begin:cpt-cypilot-algo-v2-v3-migration-normalize-pr-review:p1:inst-validate-input
+    if not isinstance(data, dict):
+        raise TypeError(
+            f"pr-review.json root must be a dict, got {type(data).__name__}"
+        )
+    # @cpt-end:cpt-cypilot-algo-v2-v3-migration-normalize-pr-review:p1:inst-validate-input
+    # @cpt-begin:cpt-cypilot-algo-v2-v3-migration-normalize-pr-review:p1:inst-rename-keys
+    out: Dict[str, Any] = {}
+    for k, v in data.items():
+        new_key = _PR_REVIEW_KEY_MAP.get(k, k)
+        if new_key == "prompts" and isinstance(v, list):
+            out[new_key] = [_normalize_pr_review_entry(entry, kit_slug=kit_slug) for entry in v]
+        else:
+            out[new_key] = v
+    # @cpt-end:cpt-cypilot-algo-v2-v3-migration-normalize-pr-review:p1:inst-rename-keys
+    # @cpt-begin:cpt-cypilot-algo-v2-v3-migration-normalize-pr-review:p1:inst-return-normalized
+    return out
+    # @cpt-end:cpt-cypilot-algo-v2-v3-migration-normalize-pr-review:p1:inst-return-normalized
+
+def _normalize_pr_review_entry(
+    entry: Any,
+    *,
+    kit_slug: str = _PR_REVIEW_DEFAULT_KIT_SLUG,
+) -> Any:
+    if not isinstance(entry, dict):
+        return entry
+    rewrites = _pr_review_path_rewrites(kit_slug)
+    out: Dict[str, Any] = {}
+    for k, v in entry.items():
+        new_key = _PR_REVIEW_KEY_MAP.get(k, k)
+        if isinstance(v, str) and new_key == "prompt_file":
+            for old_pat, new_pat in rewrites:
+                if old_pat in v and new_pat not in v:
+                    v = v.replace(old_pat, new_pat)
+                    break
+        out[new_key] = v
+    return out
+
+# Files already handled by earlier migration steps — skip in generic pass
+_ALREADY_MIGRATED = {"artifacts.json", "constraints.json"}
+# @cpt-end:cpt-cypilot-algo-v2-v3-migration-normalize-pr-review:p1:inst-pr-review-helpers
+
+# @cpt-algo:cpt-cypilot-algo-v2-v3-migration-migrate-adapter-json:p1
+def _migrate_adapter_json_configs(
+    adapter_dir: Path,
+    config_dir: Path,
+    kit_slug: str = _PR_REVIEW_DEFAULT_KIT_SLUG,
+) -> Tuple[List[str], List[str]]:
+    """Migrate remaining .json configs from adapter → config/ as .toml.
+
+    Skips files already handled by other migration steps (artifacts.json, etc.).
+    Applies file-specific normalization (e.g. pr-review.json key renaming).
+    Returns (converted_filenames, failed_filenames).
+    """
+    converted: List[str] = []
+    failed: List[str] = []
+    config_dir.mkdir(parents=True, exist_ok=True)
+    # @cpt-begin:cpt-cypilot-algo-v2-v3-migration-migrate-adapter-json:p1:inst-foreach-json
+    for json_file in sorted(adapter_dir.glob("*.json")):
+        if json_file.name in _ALREADY_MIGRATED:
+            continue
+        toml_dest = config_dir / json_file.with_suffix(".toml").name
+        if toml_dest.is_file():
+            continue
+        try:
+            data = json.loads(json_file.read_text(encoding="utf-8"))
+            if json_file.name == "pr-review.json":
+                data = _normalize_pr_review_data(data, kit_slug=kit_slug)
+            toml_utils.dump(_strip_none(data), toml_dest)
+            converted.append(json_file.name)
+        except (json.JSONDecodeError, OSError, TypeError) as exc:
+            sys.stderr.write(
+                f"WARNING: Failed to convert {json_file.name}: {exc}\n"
+            )
+            failed.append(json_file.name)
+    # @cpt-end:cpt-cypilot-algo-v2-v3-migration-migrate-adapter-json:p1:inst-foreach-json
+    # @cpt-begin:cpt-cypilot-algo-v2-v3-migration-migrate-adapter-json:p1:inst-return-results
+    return converted, failed
+    # @cpt-end:cpt-cypilot-algo-v2-v3-migration-migrate-adapter-json:p1:inst-return-results
+
+# @cpt-begin:cpt-cypilot-flow-v2-v3-migration-migrate-config:p1:inst-config-setup
 def run_migrate_config(project_root: Path) -> Dict[str, Any]:
     """Convert remaining JSON config files to TOML.
 
@@ -1477,6 +1880,24 @@ def run_migrate_config(project_root: Path) -> Dict[str, Any]:
     """
     converted: List[str] = []
     skipped: List[Dict[str, str]] = []
+    primary_slug = _PR_REVIEW_DEFAULT_KIT_SLUG
+
+    # Read primary kit slug from artifacts.toml (ADR-0014: system identity
+    # lives in artifacts.toml only; core.toml no longer has [system]).
+    artifacts_toml = project_root / "config" / "artifacts.toml"
+    if artifacts_toml.is_file():
+        try:
+            reg_data = toml_utils.load(artifacts_toml)
+            systems = reg_data.get("systems", [])
+            if isinstance(systems, list) and systems:
+                first_sys = systems[0]
+                if isinstance(first_sys, dict):
+                    kit_val = first_sys.get("kit")
+                    if isinstance(kit_val, str) and kit_val.strip():
+                        primary_slug = kit_val.strip()
+        except Exception:
+            pass
+# @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-config:p1:inst-config-setup
 
     # @cpt-begin:cpt-cypilot-flow-v2-v3-migration-migrate-config:p1:inst-scan-json-files
     scan_dirs = []
@@ -1505,6 +1926,9 @@ def run_migrate_config(project_root: Path) -> Dict[str, Any]:
             # @cpt-begin:cpt-cypilot-flow-v2-v3-migration-migrate-config:p1:inst-parse-json
             data = json.loads(json_file.read_text(encoding="utf-8"))
             # @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-config:p1:inst-parse-json
+            # Normalize known config files (key renaming, path updates)
+            if json_file.name == "pr-review.json":
+                data = _normalize_pr_review_data(data, kit_slug=primary_slug)
             # @cpt-begin:cpt-cypilot-flow-v2-v3-migration-migrate-config:p1:inst-write-toml
             toml_utils.dump(_strip_none(data), toml_file)
             # @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-config:p1:inst-write-toml
@@ -1533,11 +1957,59 @@ def run_migrate_config(project_root: Path) -> Dict[str, Any]:
     }
     # @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-config:p1:inst-return-config-summary
 
+# ===========================================================================
+# WP6: Human output formatters
+# ===========================================================================
+
+# @cpt-begin:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-migrate-helpers
+def _human_migrate_result(data: Dict[str, Any]) -> None:
+    """Format the final migration result for human output."""
+    status = data.get("status", "")
+    message = data.get("message", "")
+
+    if status == "PASS":
+        ui.step("Validation passed")
+        warnings = data.get("warnings", [])
+        if warnings:
+            ui.blank()
+            for w in warnings:
+                ui.warn(w)
+        ui.success(f"Done ({status}) — {message}")
+        ui.detail("backup", data.get("backup_dir", ""))
+        cypilot_dir = data.get("cypilot_dir", "")
+        if cypilot_dir:
+            ui.detail("cypilot dir", cypilot_dir)
+        ui.blank()
+    elif status == "DRY_RUN":
+        plan = data.get("plan", {})
+        ui.header("Migration Plan (dry run)")
+        ui.detail("adapter path", plan.get("adapter_path", "?"))
+        ui.detail("core path", f"{plan.get('core_path', '?')} ({plan.get('core_install_type', '?')})")
+        ui.detail("target dir", f"{plan.get('target_dir', '?')}/")
+        ui.detail("systems", str(plan.get("systems_count", 0)))
+        ui.detail("kits", ", ".join(plan.get("kits", [])) or "none")
+        ui.detail("AGENTS.md", "yes" if plan.get("has_agents_md") else "no")
+        ui.blank()
+        ui.info("Run without --dry-run to execute the migration.")
+    elif status == "CANCELLED":
+        ui.info("Migration cancelled.")
+    elif status == "VALIDATION_FAILED":
+        # Validation issues already printed by run_migrate
+        pass
+    elif status in ("ERROR", "CRITICAL_ERROR"):
+        ui.error(f"{status} — {message}")
+        backup_dir = data.get("backup_dir", "")
+        if backup_dir:
+            ui.detail("backup", backup_dir)
+    else:
+        ui.info(f"Status: {status}" + (f" — {message}" if message else ""))
+# @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-migrate-helpers
 
 # ===========================================================================
 # WP6: CLI Entry Points
 # ===========================================================================
 
+# @cpt-begin:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-migrate-helpers
 def cmd_migrate(argv: List[str]) -> int:
     """CLI handler for `cypilot migrate`."""
     p = argparse.ArgumentParser(
@@ -1565,7 +2037,7 @@ def cmd_migrate(argv: List[str]) -> int:
         dry_run=args.dry_run,
     )
 
-    print(json.dumps(result, indent=2, ensure_ascii=False))
+    ui.result(result, human_fn=_human_migrate_result)
 
     if result.get("status") == "PASS":
         return 0
@@ -1575,7 +2047,6 @@ def cmd_migrate(argv: List[str]) -> int:
         return 0
     else:
         return 1
-
 
 def cmd_migrate_config(argv: List[str]) -> int:
     """CLI handler for `cypilot migrate-config`."""
@@ -1592,6 +2063,7 @@ def cmd_migrate_config(argv: List[str]) -> int:
     project_root = Path(args.project_root).resolve() if args.project_root else Path.cwd().resolve()
 
     result = run_migrate_config(project_root)
-    print(json.dumps(result, indent=2, ensure_ascii=False))
+    ui.result(result)
 
     return 0
+# @cpt-end:cpt-cypilot-flow-v2-v3-migration-migrate-project:p1:inst-migrate-helpers

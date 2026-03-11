@@ -5,7 +5,7 @@ DESCRIPTION: Initialize Cypilot config for a project
 ARGUMENTS:
 
 OPTIONS:
-  --project-root  <path>  Project root directory to create .cypilot-config.json in (default: parent of Cypilot core)
+  --project-root  <path>  Project root directory (default: parent of Cypilot core)
   --cypilot-root  <path>  Explicit Cypilot core root (optional override)
   --project-name  <string>  Project name used in AGENTS.md (default: project root folder name)
   --yes  <boolean>  Do not prompt; accept defaults
@@ -25,7 +25,7 @@ EXAMPLE:
 
 RELATED:
   - @CLI.info
-  - @CLI.agents
+  - @CLI.generate-agents
 ---
 
 COMMAND validate
@@ -76,7 +76,7 @@ RELATED:
 
 COMMAND validate-kits
 SYNOPSIS: python3 scripts/cypilot.py validate-kits [--kit <id>] [--template <path>] [options]
-DESCRIPTION: Validate Cypilot kit configuration and template files. Checks kit definitions in artifacts.json and validates template frontmatter, paired markers, and valid marker types/attributes. (Legacy alias: validate-rules; legacy flag alias: --rule)
+DESCRIPTION: Validate Cypilot kit configuration and template files. Checks kit definitions in artifacts.toml and validates template frontmatter, paired markers, and valid marker types/attributes. (Legacy alias: validate-rules; legacy flag alias: --rule)
 WORKFLOW: kits
 
 ARGUMENTS:
@@ -227,6 +227,8 @@ EXAMPLE:
   $ python3 scripts/cypilot.py info --root . --cypilot-root ../Cypilot
 
 RELATED:
+  - @CLI.init
+  - @CLI.generate-agents
 ---
 
 COMMAND where-defined
@@ -281,13 +283,14 @@ RELATED:
   - @CLI.get-content
 ---
 
-COMMAND agents
-SYNOPSIS: python3 scripts/cypilot.py agents --agent <name> [options]
-DESCRIPTION: Generate/update agent-specific workflow proxies and skill outputs. Creates unified proxy files for workflows (cypilot-generate, cypilot-analyze) and the cypilot skill entry point. Supports windsurf, cursor, claude, copilot.
+COMMAND generate-agents
+SYNOPSIS: python3 scripts/cypilot.py generate-agents --agent <name> [options]
+DESCRIPTION: Generate/update agent-specific workflow proxies and skill outputs. Creates unified proxy files for workflows (cypilot-generate, cypilot-analyze) and the cypilot skill entry point. Supports windsurf, cursor, claude, copilot, openai.
 ARGUMENTS:
 
 OPTIONS:
-  --agent  <string>  required  Agent/IDE key (windsurf, cursor, claude, copilot)
+  --agent  <string>  Agent/IDE key (windsurf, cursor, claude, copilot, openai). Omit to init all supported agents.
+  --openai  <boolean>  Shortcut for --agent openai (OpenAI Codex)
   --root  <path>  Project root directory to search from (default: current directory)
   --cypilot-root  <path>  Explicit Cypilot core root (optional override)
   --config  <path>  Path to unified agents config JSON (default: {project-root}/cypilot-agents.json)
@@ -306,9 +309,11 @@ OUTPUT:
   - errors: List of errors if any
 
 EXAMPLE:
-  $ python3 scripts/cypilot.py agents --agent windsurf
-  $ python3 scripts/cypilot.py agents --agent claude --dry-run
-  $ python3 scripts/cypilot.py agents --agent cursor
+  $ python3 scripts/cypilot.py generate-agents --agent windsurf
+  $ python3 scripts/cypilot.py generate-agents --agent claude --dry-run
+  $ python3 scripts/cypilot.py generate-agents --agent cursor
+  $ python3 scripts/cypilot.py generate-agents --openai
+  $ python3 scripts/cypilot.py generate-agents
 
 RELATED:
   - @CLI.init
@@ -363,6 +368,7 @@ OPTIONS:
   --max-level  <number>  [default: 6]  Maximum heading level to include (1-6)
   --indent  <number>  [default: 2]  Indent spaces per nesting level
   --dry-run  <boolean>  Show what would change without writing files
+  --skip-validate  <boolean>  Skip post-generation validation
 
 EXIT CODES:
   0  Success
@@ -416,3 +422,278 @@ EXAMPLE:
 RELATED:
   - @CLI.toc
   - @CLI.validate
+---
+
+COMMAND update
+SYNOPSIS: python3 scripts/cypilot.py update [options]
+DESCRIPTION: Update an existing Cypilot installation. Refreshes .core/ from cache, updates kit reference copies, compares blueprint versions (skip same, warn if migration needed), regenerates .gen/ from user blueprints, and ensures config/ scaffold. Never overwrites user config files.
+
+ARGUMENTS:
+
+OPTIONS:
+  --project-root  <path>  Project root directory (default: auto-detect)
+  --dry-run  <boolean>  Show what would be done without writing files
+  --no-interactive  <boolean>  Disable interactive prompts (auto-skip customized markers)
+  -y, --yes  <boolean>  Auto-approve all prompts (no interaction)
+
+EXIT CODES:
+  0  Update successful
+  1  Error (no project root, no cache, etc.)
+
+OUTPUT:
+  JSON object with:
+  - status: PASS, WARN, or ABORTED
+  - project_root: Resolved project root path
+  - cypilot_dir: Resolved Cypilot directory path
+  - dry_run: Whether dry-run mode was used
+  - actions: Object with core_update, kits, gen_agents, gen_skill, config_* statuses
+  - errors: List of errors (if any)
+  - warnings: List of warnings (if any)
+
+EXAMPLE:
+  $ python3 scripts/cypilot.py update
+  $ python3 scripts/cypilot.py update --dry-run
+  $ python3 scripts/cypilot.py update --yes
+  $ python3 scripts/cypilot.py update --no-interactive
+
+RELATED:
+  - @CLI.init
+  - @CLI.kit-migrate
+  - @CLI.generate-resources
+---
+
+COMMAND spec-coverage
+SYNOPSIS: python3 scripts/cypilot.py spec-coverage [options]
+DESCRIPTION: Measure CDSL marker coverage in codebase files. Scans registered codebase paths for @cpt-* traceability markers and reports coverage percentage, granularity score, and per-file details.
+
+ARGUMENTS:
+
+OPTIONS:
+  --min-coverage  <number>  Minimum coverage percentage (0-100). Exit 2 if below.
+  --min-granularity  <number>  Minimum granularity score (0-1). Exit 2 if below.
+  --verbose  <boolean>  Include per-file marker details and line ranges
+  --output  <path>  Write report to file instead of stdout
+
+EXIT CODES:
+  0  Coverage meets thresholds (or no thresholds specified)
+  1  Error (no cypilot found, no context)
+  2  Coverage below specified threshold
+
+OUTPUT:
+  JSON object with:
+  - status: PASS or FAIL
+  - summary: Object with total_files, covered_files, coverage_pct, granularity_score
+  - files: Per-file coverage details (when --verbose)
+  - threshold_failures: List of threshold violations (when thresholds specified)
+
+EXAMPLE:
+  $ python3 scripts/cypilot.py spec-coverage
+  $ python3 scripts/cypilot.py spec-coverage --min-coverage 80
+  $ python3 scripts/cypilot.py spec-coverage --verbose
+  $ python3 scripts/cypilot.py spec-coverage --min-coverage 80 --min-granularity 0.5
+  $ python3 scripts/cypilot.py spec-coverage --output coverage-report.json
+
+RELATED:
+  - @CLI.validate
+  - @CLI.list-ids
+---
+
+COMMAND kit install
+SYNOPSIS: python3 scripts/cypilot.py kit install <path> [options]
+DESCRIPTION: Install a kit from a local source directory. The source must contain a blueprints/ directory with at least one .md file. Copies blueprints and scripts to reference and config directories, generates resources.
+
+ARGUMENTS:
+  path  <path>  required  Path to kit source directory (must contain blueprints/)
+
+OPTIONS:
+  --force  <boolean>  Overwrite existing kit
+  --dry-run  <boolean>  Show what would be done without writing files
+
+EXIT CODES:
+  0  Installation successful
+  1  Error (no project root, no cypilot directory)
+  2  Invalid source or kit already installed
+
+OUTPUT:
+  JSON object with:
+  - status: PASS or FAIL
+  - action: installed
+  - kit: Kit slug
+  - version: Kit version
+  - files_written: Number of generated files
+  - artifact_kinds: List of artifact kinds generated
+
+EXAMPLE:
+  $ python3 scripts/cypilot.py kit install /path/to/my-kit
+  $ python3 scripts/cypilot.py kit install ./kits/sdlc --force
+  $ python3 scripts/cypilot.py kit install ./kits/sdlc --dry-run
+
+RELATED:
+  - @CLI.kit-update
+  - @CLI.kit-migrate
+  - @CLI.generate-resources
+---
+
+COMMAND kit update
+SYNOPSIS: python3 scripts/cypilot.py kit update [options]
+DESCRIPTION: Update installed kits. Regenerates .gen/ outputs from user blueprints. With --force, overwrites user blueprints with reference copies first.
+
+ARGUMENTS:
+
+OPTIONS:
+  --kit  <string>  Kit slug to update (default: all)
+  --force  <boolean>  Force overwrite user blueprints with reference copies
+  --dry-run  <boolean>  Show what would be done without writing files
+
+EXIT CODES:
+  0  Update successful
+  2  No kits installed or kit not found
+
+OUTPUT:
+  JSON object with:
+  - status: PASS or WARN
+  - kits_updated: Number of kits updated
+  - results: Per-kit results with action and files_written
+  - errors: List of errors (if any)
+
+EXAMPLE:
+  $ python3 scripts/cypilot.py kit update
+  $ python3 scripts/cypilot.py kit update --kit sdlc
+  $ python3 scripts/cypilot.py kit update --force
+  $ python3 scripts/cypilot.py kit update --dry-run
+
+RELATED:
+  - @CLI.kit-install
+  - @CLI.kit-migrate
+  - @CLI.generate-resources
+---
+
+COMMAND kit migrate
+SYNOPSIS: python3 scripts/cypilot.py kit migrate [options]
+DESCRIPTION: Migrate kit blueprints to latest versions from reference using marker-level three-way merge. Compares reference and user blueprints at the @cpt: marker level, prompts for per-marker accept/decline decisions (updates, insertions, deletions, restorations), and regenerates .gen/ after migration.
+
+ARGUMENTS:
+
+OPTIONS:
+  --kit  <string>  Kit slug to migrate (default: all)
+  --dry-run  <boolean>  Show what would be done without writing files
+  --no-interactive  <boolean>  Disable interactive prompts (auto-skip customized markers)
+  -y, --yes  <boolean>  Auto-approve all prompts (no interaction)
+
+EXIT CODES:
+  0  Migration successful (or no migration needed)
+  2  No kits installed or kit not found
+
+OUTPUT:
+  JSON object with:
+  - status: PASS, FAIL, or ABORTED
+  - kits_migrated: Number of kits migrated
+  - kits_current: Number of kits already up to date
+  - kits_aborted: Number of kits where migration was aborted (if any)
+  - results: Per-kit results with blueprint-level details
+  - dry_run: Whether dry-run mode was used (if true)
+
+EXAMPLE:
+  $ python3 scripts/cypilot.py kit migrate
+  $ python3 scripts/cypilot.py kit migrate --kit sdlc
+  $ python3 scripts/cypilot.py kit migrate --dry-run
+  $ python3 scripts/cypilot.py kit migrate --yes
+  $ python3 scripts/cypilot.py kit migrate --no-interactive
+
+RELATED:
+  - @CLI.kit-install
+  - @CLI.kit-update
+  - @CLI.update
+---
+
+COMMAND generate-resources
+SYNOPSIS: python3 scripts/cypilot.py generate-resources [options]
+DESCRIPTION: Regenerate kit resources from user blueprints. Processes @cpt: markers in blueprint files to produce templates, rules, checklists, examples, workflows, constraints, and SKILL.md in .gen/kits/{slug}/.
+
+ARGUMENTS:
+
+OPTIONS:
+  --kit  <string>  Kit slug (default: all)
+  --dry-run  <boolean>  Show what would be done without writing files
+
+EXIT CODES:
+  0  Generation successful
+  2  No kits with blueprints found
+
+OUTPUT:
+  JSON object with:
+  - status: PASS or WARN
+  - kits_processed: Number of kits processed
+  - results: Per-kit results with files_written and artifact_kinds
+  - errors: List of errors (if any)
+
+EXAMPLE:
+  $ python3 scripts/cypilot.py generate-resources
+  $ python3 scripts/cypilot.py generate-resources --kit sdlc
+  $ python3 scripts/cypilot.py generate-resources --dry-run
+
+RELATED:
+  - @CLI.kit-install
+  - @CLI.kit-update
+  - @CLI.update
+---
+
+COMMAND migrate
+SYNOPSIS: python3 scripts/cypilot.py migrate [options]
+DESCRIPTION: Migrate a v2 Cypilot project to v3. Converts adapter-based layout to blueprint-based three-directory layout (.core/, .gen/, config/), migrates artifacts.json to artifacts.toml, converts AGENTS.md format, installs kits, and validates migration.
+
+ARGUMENTS:
+
+OPTIONS:
+  --project-root  <path>  Project root directory (default: current directory)
+  --install-dir  <string>  Cypilot directory relative to project root (default: derived from v2 core path)
+  --yes  <boolean>  Skip confirmation prompt
+  --dry-run  <boolean>  Detect and show plan only
+
+EXIT CODES:
+  0  Migration successful, dry-run complete, or cancelled by user
+  1  Error (detection failed, migration failed)
+
+OUTPUT:
+  JSON object with:
+  - status: PASS, DRY_RUN, CANCELLED, or ERROR
+  - Migration details (steps performed, files converted, etc.)
+
+EXAMPLE:
+  $ python3 scripts/cypilot.py migrate
+  $ python3 scripts/cypilot.py migrate --dry-run
+  $ python3 scripts/cypilot.py migrate --yes
+  $ python3 scripts/cypilot.py migrate --project-root /path/to/project
+
+RELATED:
+  - @CLI.migrate-config
+  - @CLI.init
+  - @CLI.update
+---
+
+COMMAND migrate-config
+SYNOPSIS: python3 scripts/cypilot.py migrate-config [options]
+DESCRIPTION: Convert remaining legacy JSON config files to TOML format. Scans for .json config files in the Cypilot directory and converts them to .toml equivalents.
+
+ARGUMENTS:
+
+OPTIONS:
+  --project-root  <path>  Project root directory (default: current directory)
+
+EXIT CODES:
+  0  Conversion complete
+
+OUTPUT:
+  JSON object with:
+  - converted_count: Number of files converted
+  - skipped_count: Number of files skipped
+  - converted: List of converted file paths
+  - skipped: List of skipped file paths
+
+EXAMPLE:
+  $ python3 scripts/cypilot.py migrate-config
+  $ python3 scripts/cypilot.py migrate-config --project-root /path/to/project
+
+RELATED:
+  - @CLI.migrate
+  - @CLI.update

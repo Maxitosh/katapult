@@ -1,13 +1,13 @@
 ---
 name: cypilot
-description: "Invoke when user asks to do something with Cypilot, or wants to analyze/validate artifacts, or create/generate/implement anything using Cypilot workflows. Core capabilities: workflow routing (analyze/generate/auto-config); deterministic validation (structure, cross-refs, traceability); code\u2194artifact traceability with @cpt-* markers; ID search/navigation; init/bootstrap; adapter + registry discovery; auto-configuration of brownfield projects (scan conventions, generate rules); agent integrations."
+description: "Invoke when user asks to do something with Cypilot, or wants to analyze/validate artifacts, or create/generate/implement anything using Cypilot workflows. Core capabilities: workflow routing (analyze/generate/auto-config); deterministic validation (structure, cross-refs, traceability, TOC); code↔artifact traceability with @cpt-* markers; spec coverage measurement; ID search/navigation; init/bootstrap; adapter + registry discovery; auto-configuration of brownfield projects (scan conventions, generate rules); kit management (install/update with file-level diff); TOC generation; agent integrations (Windsurf, Cursor, Claude, Copilot, OpenAI)."
 ---
 
 # Cypilot Unified Tool
 
 ## Goal
 
-Cypilot provides: artifact validation, cross-reference validation, code traceability, ID search, and design-to-code implementation with `@cpt-*` markers.
+Cypilot provides: artifact validation, cross-reference validation, code traceability, spec coverage measurement, ID search/navigation, kit management (install/update with file-level diff), TOC generation/validation, multi-agent integration, and design-to-code implementation with `@cpt-*` markers.
 
 ## Preconditions
 
@@ -43,7 +43,7 @@ Cypilot provides: artifact validation, cross-reference validation, code traceabi
 - [ ] I will read ALL required files BEFORE proceeding
 - [ ] I will follow workflows step-by-step WITHOUT shortcuts
 - [ ] I will NOT create files without user confirmation (operation workflows)
-- [ ] I will end EVERY response with a list of Cypilot files read while producing the response, why each file was read, and which initial instruction triggered opening each file
+- [ ] I will include a list of Cypilot files read while producing the response, why each file was read, and which initial instruction triggered opening each file — ALWAYS placed BEFORE any user action prompt (approve all, yes/no, proceed, modify, etc.) so the user sees context before deciding
 
 **By proceeding with Cypilot work, I acknowledge and accept these requirements.**
 
@@ -110,7 +110,7 @@ ALWAYS open and follow `{cypilot_path}/.gen/SKILL.md` WHEN it exists
 
 ALWAYS open and follow `{cypilot_path}/config/SKILL.md` WHEN it exists
 
-ALWAYS FIRST run `python3 {cypilot_path}/.core/skills/cypilot/scripts/cypilot.py info` BEFORE any Cypilot workflow action
+ALWAYS FIRST run `python3 {cypilot_path}/.core/skills/cypilot/scripts/cypilot.py --json info` BEFORE any Cypilot workflow action
 
 ALWAYS FIRST read `{cypilot_path}/.gen/AGENTS.md` WHEN cypilot status is FOUND
 
@@ -145,8 +145,10 @@ Cypilot: {FOUND at path | NOT_FOUND}
 
 ALWAYS use script entrypoint:
 ```bash
-python3 {cypilot_path}/.core/skills/cypilot/scripts/cypilot.py <subcommand> [options]
+python3 {cypilot_path}/.core/skills/cypilot/scripts/cypilot.py --json <subcommand> [options]
 ```
+
+ALWAYS pass `--json` as the FIRST argument (before the subcommand) WHEN invoking any Cypilot CLI command from an AI agent. This ensures machine-readable JSON output on stdout. Without `--json`, the CLI produces human-friendly output intended for interactive terminal use.
 
 ALWAYS use `=` form for pattern args starting with `-`: `--pattern=-req-`
 
@@ -156,9 +158,9 @@ ALWAYS use `=` form for pattern args starting with `-`: `--pattern=-req-`
 
 ALWAYS SKIP Protocol Guard and workflow loading WHEN user invokes quick commands
 
-ALWAYS run `python3 {cypilot_path}/.core/skills/cypilot/scripts/cypilot.py init --yes` directly WHEN user invokes `cypilot init`
+ALWAYS run `python3 {cypilot_path}/.core/skills/cypilot/scripts/cypilot.py --json init --yes` directly WHEN user invokes `cypilot init`
 
-ALWAYS run `python3 {cypilot_path}/.core/skills/cypilot/scripts/cypilot.py agents --agent <name>` directly WHEN user invokes `cypilot agents <name>`
+ALWAYS run `python3 {cypilot_path}/.core/skills/cypilot/scripts/cypilot.py --json generate-agents --agent <name>` directly WHEN user invokes `cypilot generate-agents <name>`
 
 ALWAYS open and follow `{cypilot_path}/.core/workflows/generate.md` directly WHEN user invokes `cypilot auto-config` or `cypilot configure` — generate.md will trigger the auto-config methodology
 
@@ -178,51 +180,141 @@ ALWAYS ask user "analyze (read-only) or generate (modify)?" WHEN intent is UNCLE
 
 ## Command Reference
 
-### validate
+All commands use the entrypoint:
 ```bash
-python3 {cypilot_path}/.core/skills/cypilot/scripts/cypilot.py validate [--artifact <path>] [--skip-code] [--verbose]
+python3 {cypilot_path}/.core/skills/cypilot/scripts/cypilot.py <command> [options]
 ```
-Validates artifacts/code with deterministic validation checks (structure, cross-refs, task statuses, traceability).
+
+All commands output JSON to stdout when invoked with `--json`. Without `--json`, output is human-friendly. Exit codes: 0=PASS, 1=filesystem/config error, 2=FAIL.
+
+### Validation Commands
+
+#### validate
+```bash
+validate [--artifact <path>] [--skip-code] [--verbose] [--output <path>]
+```
+Validates artifacts and code with deterministic checks (structure, cross-refs, task statuses, traceability markers — pairing, coverage, orphans).
 
 Legacy aliases: `validate-code` (same behavior), `validate-rules` (alias for `validate-kits`).
 
-### list-ids
+#### validate-kits
 ```bash
-python3 {cypilot_path}/.core/skills/cypilot/scripts/cypilot.py list-ids [--artifact <path>] [--pattern <string>] [--kind <string>]
+validate-kits [--kit <id>] [--template <path>] [--verbose]
 ```
+Validates kit configuration — template frontmatter, constraints, resource paths.
 
-### get-content
+#### validate-toc
 ```bash
-python3 {cypilot_path}/.core/skills/cypilot/scripts/cypilot.py get-content (--artifact <path> | --code <path>) --id <string>
+validate-toc <files...> [--max-level <N>] [--verbose]
 ```
+Validates Table of Contents in Markdown files — TOC exists, anchors point to real headings, all headings covered, not stale.
 
-### where-defined / where-used
+#### self-check
 ```bash
-python3 {cypilot_path}/.core/skills/cypilot/scripts/cypilot.py where-defined --id <id>
-python3 {cypilot_path}/.core/skills/cypilot/scripts/cypilot.py where-used --id <id>
+self-check [--kit <id>] [--verbose]
 ```
+Validates example artifacts against their templates (template QA). Ensures templates and examples remain synchronized.
 
-### info
+#### spec-coverage
 ```bash
-python3 {cypilot_path}/.core/skills/cypilot/scripts/cypilot.py info
+spec-coverage [--system <slug>] [--min-coverage <N>] [--min-file-coverage <N>] [--min-granularity <N>] [--verbose] [--output <path>]
 ```
-Output: status, cypilot_dir, project_name, specs, kits
+Measures CDSL marker coverage in codebase files. Reports coverage percentage, granularity score, per-file details, and uncovered line ranges. Use `--system` to limit to specific system slug(s). Use `--min-file-coverage` to enforce per-file minimum.
 
-### init
-```bash
-python3 {cypilot_path}/.core/skills/cypilot/scripts/cypilot.py init [--yes] [--dry-run]
-```
+### Search Commands
 
-### agents
+#### list-ids
 ```bash
-python3 {cypilot_path}/.core/skills/cypilot/scripts/cypilot.py agents --agent <name>
+list-ids [--artifact <path>] [--pattern <string>] [--regex] [--kind <string>] [--all] [--include-code]
 ```
-Supported: windsurf, cursor, claude, copilot, openai
+Lists all Cypilot IDs from registered artifacts. Supports filtering by pattern, kind, and optional code scanning.
 
-Shortcut:
+#### list-id-kinds
 ```bash
-python3 {cypilot_path}/.core/skills/cypilot/scripts/cypilot.py agents --openai
+list-id-kinds [--artifact <path>]
 ```
+Lists ID kinds that exist in artifacts with counts and template mappings.
+
+#### get-content
+```bash
+get-content (--artifact <path> | --code <path>) --id <string> [--inst <string>]
+```
+Retrieves content block for a specific Cypilot ID from artifacts or code files.
+
+#### where-defined
+```bash
+where-defined --id <id> [--artifact <path>]
+```
+Finds where a Cypilot ID is defined.
+
+#### where-used
+```bash
+where-used --id <id> [--artifact <path>] [--include-definitions]
+```
+Finds all references to a Cypilot ID.
+
+### Kit Management Commands
+
+#### kit install
+```bash
+kit install <source-path> [--dry-run] [--yes]
+```
+Installs a kit from a source directory. Copies kit files to `config/kits/{slug}/`.
+
+#### kit update
+```bash
+kit update [--kit <slug>] [--dry-run] [--yes] [--auto-approve]
+```
+Updates kit files in `config/kits/{slug}/` with file-level diff. Interactive prompts for modified files: accept/decline/accept-all/decline-all.
+
+### Utility Commands
+
+#### toc
+```bash
+toc <files...> [--max-level <N>] [--indent <N>] [--dry-run] [--skip-validate]
+```
+Generates or updates Table of Contents in Markdown files between `<!-- toc -->` markers.
+
+#### info
+```bash
+info [--root <path>] [--cypilot-root <path>]
+```
+Discovers Cypilot configuration and shows project status (cypilot_dir, project_name, specs, kits).
+
+#### init
+```bash
+init [--project-root <path>] [--cypilot-root <path>] [--project-name <string>] [--yes] [--dry-run] [--force]
+```
+Initializes Cypilot config directory (`.core/`, `.gen/`, `config/`) and root `AGENTS.md`.
+
+#### update
+```bash
+update [--source <path>] [--force] [--dry-run]
+```
+Updates `.core/` from cache, updates kit files in `config/kits/` with file-level diff, regenerates `.gen/` aggregates, ensures `config/` scaffold.
+
+#### agents
+```bash
+agents --agent <name> [--root <path>] [--cypilot-root <path>] [--dry-run]
+```
+Generates agent-specific workflow proxies and skill entry points.
+Supported: windsurf, cursor, claude, copilot, openai.
+
+Shortcut: `agents --openai`
+
+### Migration Commands
+
+#### migrate
+```bash
+migrate [--project-root <path>] [--cypilot-root <path>] [--dry-run] [--yes]
+```
+Migrates Cypilot v2 projects to v3 (adapter-based → blueprint-based, artifacts.json → artifacts.toml, three-directory layout).
+
+#### migrate-config
+```bash
+migrate-config [--project-root <path>] [--dry-run]
+```
+Converts legacy JSON config files to TOML format.
 
 ---
 
@@ -260,4 +352,4 @@ Artifact registry: `{cypilot_path}/config/artifacts.toml`
 - Codebase paths for traceability scanning
 - Autodetect rules for artifact discovery
 
-All commands output JSON. Exit codes: 0=PASS, 1=filesystem error, 2=FAIL.
+All commands output JSON when invoked with `--json`. Exit codes: 0=PASS, 1=filesystem error, 2=FAIL.
