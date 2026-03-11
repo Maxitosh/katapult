@@ -3,7 +3,7 @@ cypilot: true
 type: spec
 name: Project Extension Specification
 version: 1.0
-purpose: Define how projects extend Cypilot behavior through .cypilot/config/sysprompts and config/AGENTS.md with operation-scoped system prompts
+purpose: Define how projects extend Cypilot behavior through {cypilot_path}/config/sysprompts and config/AGENTS.md with operation-scoped system prompts
 drivers:
   - cpt-cypilot-fr-core-config
   - cpt-cypilot-fr-core-workflows
@@ -11,55 +11,55 @@ drivers:
 
 # Project Extension Specification
 
+
+<!-- toc -->
+
+- [Overview](#overview)
+- [Extension Directory](#extension-directory)
+- [Root AGENTS.md Entry](#root-agentsmd-entry)
+- [config/AGENTS.md](#configagentsmd)
+  - [Required Structure](#required-structure)
+  - [WHEN Rule Format](#when-rule-format)
+- [System Prompt Files](#system-prompt-files)
+  - [Format](#format)
+  - [Standard System Prompts](#standard-system-prompts)
+  - [Content Principles](#content-principles)
+- [System Prompt Loading](#system-prompt-loading)
+  - [When Prompts Are Loaded](#when-prompts-are-loaded)
+  - [Loading Algorithm](#loading-algorithm)
+  - [Interaction with Kit Prompts](#interaction-with-kit-prompts)
+- [System Prompt Discovery](#system-prompt-discovery)
+- [Validation](#validation)
+  - [AGENTS.md Validation](#agentsmd-validation)
+  - [System Prompt File Validation](#system-prompt-file-validation)
+- [Error Handling](#error-handling)
+  - [System Prompt Not Found](#system-prompt-not-found)
+  - [AGENTS.md Not Found](#agentsmd-not-found)
+  - [Invalid WHEN Format](#invalid-when-format)
+- [Example](#example)
+- [References](#references)
+
+<!-- /toc -->
+
 ---
-
-## Table of Contents
-
-- [Project Extension Specification](#project-extension-specification)
-  - [Table of Contents](#table-of-contents)
-  - [Overview](#overview)
-  - [Extension Directory](#extension-directory)
-  - [Root AGENTS.md Entry](#root-agentsmd-entry)
-  - [config/AGENTS.md](#configagentsmd)
-    - [Required Structure](#required-structure)
-    - [WHEN Rule Format](#when-rule-format)
-  - [System Prompt Files](#system-prompt-files)
-    - [Format](#format)
-    - [Standard System Prompts](#standard-system-prompts)
-    - [Content Principles](#content-principles)
-  - [System Prompt Loading](#system-prompt-loading)
-    - [When Prompts Are Loaded](#when-prompts-are-loaded)
-    - [Loading Algorithm](#loading-algorithm)
-    - [Interaction with Kit Prompts](#interaction-with-kit-prompts)
-  - [System Prompt Discovery](#system-prompt-discovery)
-  - [Validation](#validation)
-    - [AGENTS.md Validation](#agentsmd-validation)
-    - [System Prompt File Validation](#system-prompt-file-validation)
-  - [Error Handling](#error-handling)
-    - [System Prompt Not Found](#system-prompt-not-found)
-    - [AGENTS.md Not Found](#agentsmd-not-found)
-    - [Invalid WHEN Format](#invalid-when-format)
-  - [Example](#example)
-  - [References](#references)
-
 ---
 
 ## Overview
 
-Projects extend Cypilot behavior by placing **system prompts** in `{cypilot_path}/config/sysprompts/` and registering them via `{cypilot_path}/config/AGENTS.md`. These prompts are loaded by workflows during generate, analyze, and code operations, providing project-specific context without modifying kit blueprints or core configuration.
+Projects extend Cypilot behavior by placing **system prompts** in `{cypilot_path}/config/sysprompts/` and registering them via `{cypilot_path}/config/AGENTS.md`. These prompts are loaded by workflows during generate, analyze, and code operations, providing project-specific context without modifying kit files or core configuration.
 
 **Key properties**:
 - System prompts live in `{cypilot_path}/config/sysprompts/*.md` — plain Markdown files
 - `AGENTS.md` at `{cypilot_path}/config/AGENTS.md` maps prompts to operations via `WHEN` rules
 - Prompts are loaded at runtime — no code generation, no build step
 - Project-specific: conventions, tech stack, domain model, patterns, etc.
-- Complementary to kit blueprints: kit rules define artifact structure, project system prompts define project context
+- Complementary to kit files: kit rules define artifact structure, project system prompts define project context
 
-**What goes here vs. in kit blueprints**:
+**What goes here vs. in kit files**:
 
 | Concern | Location |
 |---------|----------|
-| Artifact structure, ID kinds, heading rules | Kit blueprint (`@cpt:rules`, `@cpt:id`, `@cpt:heading`) |
+| Artifact structure, ID kinds, heading rules | Kit files (`rules.md`, `constraints.toml`, `template.md`) |
 | Project tech stack, naming conventions | `{cypilot_path}/config/sysprompts/tech-stack.md` |
 | Domain model, entity relationships | `{cypilot_path}/config/sysprompts/domain-model.md` |
 | API contract format | `{cypilot_path}/config/sysprompts/api-contracts.md` |
@@ -69,7 +69,7 @@ Projects extend Cypilot behavior by placing **system prompts** in `{cypilot_path
 ## Extension Directory
 
 ```
-.cypilot/
+{cypilot_path}/             # Install directory (default: cypilot/)
 └── config/
     ├── AGENTS.md              # Navigation rules (WHEN → spec file)
     ├── core.toml              # Core config
@@ -93,7 +93,8 @@ Cypilot injects a managed block into the **project root** `AGENTS.md` that route
 
 ```markdown
 <!-- @cpt:root-agents -->
-ALWAYS open @/.cypilot/config/AGENTS.md FIRST
+ALWAYS open and follow `{cypilot_path}/.gen/AGENTS.md` FIRST
+ALWAYS open and follow `{cypilot_path}/config/AGENTS.md` WHEN it exists
 <!-- @/cpt:root-agents -->
 ```
 
@@ -116,7 +117,7 @@ This ensures any agent that opens the project is immediately routed to Cypilot's
 
 `{cypilot_path}/config/AGENTS.md` is the project-level navigation file. It declares which system prompts to load for which operations. Agents reach this file via the root `AGENTS.md` entry above.
 
-Kit workflow commands are **not** placed here — they are exposed via agent entry points (e.g., `.windsurf/workflows/cypilot-*.md`) generated from `@cpt:workflow` markers in kit blueprints (see [kit.md](./kit.md)).
+Kit workflow commands are **not** placed here — they are exposed via agent entry points (e.g., `.windsurf/workflows/cypilot-*.md`) generated from kit workflow files (see [kit.md](kit/kit.md)).
 
 ### Required Structure
 
@@ -205,7 +206,7 @@ Workflows load project system prompts at specific points:
 |-----------|-------------------------------------------|
 | `cypilot generate PRD` | Prompts matching "working with entities", "writing requirements" |
 | `cypilot generate DESIGN` | Prompts matching "designing components", "choosing technologies" |
-| `cypilot validate` | Prompts matching relevant artifact content |
+| `cpt validate` | Prompts matching relevant artifact content |
 | Code generation/review | `tech-stack.md`, `conventions.md`, `patterns.md` |
 
 ### Loading Algorithm
@@ -218,9 +219,9 @@ Workflows load project system prompts at specific points:
 
 ### Interaction with Kit Prompts
 
-Project system prompts are **additive** — they don't replace kit blueprint system prompts (`@cpt:system-prompt`). Loading order:
+Project system prompts are **additive** — they don't replace kit-level prompts. Loading order:
 
-1. Kit `@cpt:system-prompt` (from blueprint) — artifact-kind-level directives
+1. Kit rules and prompts (from `rules.md`, `SKILL.md`) — artifact-kind-level directives
 2. Project `{cypilot_path}/config/sysprompts/*.md` (from AGENTS.md WHEN rules) — project-level context
 
 If a project system prompt contradicts a kit prompt, the project system prompt takes precedence (project-specific overrides generic).
@@ -232,7 +233,7 @@ If a project system prompt contradicts a kit prompt, the project system prompt t
 For existing projects, Cypilot can auto-discover system prompt candidates:
 
 ```bash
-cypilot init --discover
+cpt init --discover
 ```
 
 **Discovery process**:
@@ -278,7 +279,7 @@ cypilot init --discover
 
 **Validation command**:
 ```bash
-cypilot validate --sysprompts
+cpt validate --sysprompts
 ```
 
 ---
@@ -299,7 +300,7 @@ cypilot validate --sysprompts
 ```
 ⚠️ Project AGENTS.md not found: {cypilot_path}/config/AGENTS.md
 → No project-level system prompts will be loaded
-→ Fix: Run `cypilot init` to create AGENTS.md
+→ Fix: Run `cpt init` to create AGENTS.md
 ```
 **Action**: WARN — workflows proceed with kit-level system prompts only.
 
@@ -364,6 +365,6 @@ MyApp is a TypeScript monorepo using Next.js for the frontend and Fastify for th
 
 ## References
 
-- **Kit specification**: `specs/kit/blueprint.md` — blueprint `@cpt:system-prompt` and `@cpt:workflow` markers
+- **Kit specification**: `specs/kit/kit.md` — kit structure, file reference, update model
 - **Rules format**: `specs/kit/rules.md` — workflow entry point
 - **CLI**: `specs/cli.md` — `init`, `agents`, `validate --sysprompts` commands

@@ -1,23 +1,30 @@
+# @cpt-begin:cpt-cypilot-flow-traceability-validation-query:p1:inst-query-imports
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Dict, List, Tuple
 
 from ..utils.document import scan_cpt_ids
-
+from ..utils.ui import ui
+# @cpt-end:cpt-cypilot-flow-traceability-validation-query:p1:inst-query-imports
 
 # @cpt-flow:cpt-cypilot-flow-traceability-validation-query:p1
+# @cpt-begin:cpt-cypilot-flow-traceability-validation-query:p1:inst-query-resolve
 def cmd_where_used(argv: List[str]) -> int:
     """Find all references to a Cypilot ID."""
     p = argparse.ArgumentParser(prog="where-used", description="Find all references to an Cypilot ID")
-    p.add_argument("--id", required=True, help="Cypilot ID to find references for")
+    p.add_argument("id_positional", nargs="?", default=None, help="Cypilot ID to find references for")
+    p.add_argument("--id", default=None, help="Cypilot ID to find references for")
     p.add_argument("--artifact", default=None, help="Limit search to specific artifact (optional)")
     p.add_argument("--include-definitions", action="store_true", help="Include definitions in results")
     args = p.parse_args(argv)
 
-    target_id = str(args.id).strip()
+    if args.id_positional and args.id:
+        sys.stderr.write("WARNING: both positional ID and --id given; using positional\n")
+    target_id = (args.id_positional or args.id or "").strip()
     if not target_id:
-        print(json.dumps({"status": "ERROR", "message": "ID cannot be empty"}, indent=None, ensure_ascii=False))
+        ui.result({"status": "ERROR", "message": "ID cannot be empty"})
         return 1
 
     # Collect artifacts to scan: (artifact_path, artifact_kind)
@@ -27,14 +34,14 @@ def cmd_where_used(argv: List[str]) -> int:
         # Load context from artifact's location
         artifact_path = Path(args.artifact).resolve()
         if not artifact_path.exists():
-            print(json.dumps({"status": "ERROR", "message": f"Artifact not found: {artifact_path}"}, indent=None, ensure_ascii=False))
+            ui.result({"status": "ERROR", "message": f"Artifact not found: {artifact_path}"})
             return 1
 
         from ..utils.context import CypilotContext
 
         ctx = CypilotContext.load(artifact_path.parent)
         if not ctx:
-            print(json.dumps({"status": "ERROR", "message": "Cypilot not initialized. Run 'cypilot init' first."}, indent=None, ensure_ascii=False))
+            ui.result({"status": "ERROR", "message": "Cypilot not initialized. Run 'cypilot init' first."})
             return 1
 
         meta = ctx.meta
@@ -50,7 +57,7 @@ def cmd_where_used(argv: List[str]) -> int:
                 artifact_meta, _system_node = result
                 artifacts_to_scan.append((artifact_path, str(artifact_meta.kind)))
         if not artifacts_to_scan:
-            print(json.dumps({"status": "ERROR", "message": f"Artifact not in Cypilot registry: {args.artifact}"}, indent=None, ensure_ascii=False))
+            ui.result({"status": "ERROR", "message": f"Artifact not in Cypilot registry: {args.artifact}"})
             return 1
     else:
         # Use global context
@@ -58,7 +65,7 @@ def cmd_where_used(argv: List[str]) -> int:
 
         ctx = get_context()
         if not ctx:
-            print(json.dumps({"status": "ERROR", "message": "Cypilot not initialized. Run 'cypilot init' first."}, indent=None, ensure_ascii=False))
+            ui.result({"status": "ERROR", "message": "Cypilot not initialized. Run 'cypilot init' first."})
             return 1
 
         meta = ctx.meta
@@ -71,13 +78,9 @@ def cmd_where_used(argv: List[str]) -> int:
                 artifacts_to_scan.append((artifact_path, str(artifact_meta.kind)))
 
     if not artifacts_to_scan:
-        print(json.dumps({
-            "id": target_id,
-            "artifacts_scanned": 0,
-            "count": 0,
-            "references": [],
-        }, indent=None, ensure_ascii=False))
+        ui.result({"id": target_id, "artifacts_scanned": 0, "count": 0, "references": []}, human_fn=lambda d: _human_where_used(d))
         return 0
+    # @cpt-end:cpt-cypilot-flow-traceability-validation-query:p1:inst-query-resolve
 
     # @cpt-begin:cpt-cypilot-flow-traceability-validation-query:p1:inst-if-where-used
     # Search for references
@@ -102,10 +105,36 @@ def cmd_where_used(argv: List[str]) -> int:
     references = sorted(references, key=lambda r: (str(r.get("artifact", "")), int(r.get("line", 0))))
 
     # @cpt-end:cpt-cypilot-flow-traceability-validation-query:p1:inst-if-where-used
-    print(json.dumps({
-        "id": target_id,
-        "artifacts_scanned": len(artifacts_to_scan),
-        "count": len(references),
-        "references": references,
-    }, indent=None, ensure_ascii=False))
+    ui.result({"id": target_id, "artifacts_scanned": len(artifacts_to_scan), "count": len(references), "references": references}, human_fn=lambda d: _human_where_used(d))
     return 0
+
+# @cpt-begin:cpt-cypilot-flow-traceability-validation-query:p1:inst-query-format
+def _human_where_used(data: dict) -> None:
+    target = data.get("id", "?")
+    refs = data.get("references", [])
+    n_art = data.get("artifacts_scanned", 0)
+
+    ui.header("Where Used")
+    ui.detail("ID", target)
+    ui.detail("Artifacts scanned", str(n_art))
+    ui.detail("References found", str(data.get("count", len(refs))))
+
+    if not refs:
+        ui.blank()
+        ui.info("No references found.")
+        ui.blank()
+        return
+
+    ui.blank()
+    for r in refs:
+        art = ui.relpath(r.get("artifact", "?"))
+        line = r.get("line", "")
+        art_type = r.get("artifact_type", "")
+        ref_type = r.get("type", "")
+        checked = r.get("checked", False)
+        loc = f":{line}" if line else ""
+        suffix = "  \u2713" if checked else ""
+        ui.step(f"{art}{loc}  ({ref_type}, {art_type}){suffix}")
+
+    ui.blank()
+# @cpt-end:cpt-cypilot-flow-traceability-validation-query:p1:inst-query-format

@@ -17,12 +17,12 @@ Features:
 @cpt-flow:cpt-cypilot-flow-developer-experience-self-check:p1
 """
 
+# @cpt-begin:cpt-cypilot-algo-traceability-validation-toc-utils:p1:inst-toc-util-datamodel
 from __future__ import annotations
 
 import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -31,11 +31,39 @@ from typing import Any, Dict, List, Optional, Tuple
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
 _FENCE_RE = re.compile(r"^(`{3,}|~{3,})")
 
+def _fence_update(
+    line: str, state: Optional[Tuple[str, int]],
+) -> Optional[Tuple[str, int]]:
+    """Update fence tracking state.
+
+    A closing fence must use the same character and be at least as long
+    as the opener (CommonMark §4.5).
+
+    Returns:
+        None when outside a fence, ``(char, length)`` when inside.
+    """
+    stripped = line.rstrip("\n")
+    leading = len(stripped) - len(stripped.lstrip(" "))
+    if leading > 3:
+        return state
+    m = _FENCE_RE.match(stripped.lstrip())
+    if not m:
+        return state
+    opener = m.group(1)
+    char, length = opener[0], len(opener)
+    if state is None:
+        return (char, length)
+    # Closing fence must use same char, be at least as long, and have no
+    # info string — only optional whitespace after the fence token (§4.5).
+    if char == state[0] and length >= state[1]:
+        if stripped.lstrip()[m.end():].strip() == "":
+            return None
+    return state
+
 TOC_MARKER_START = "<!-- toc -->"
 TOC_MARKER_END = "<!-- /toc -->"
 
 _TOC_HEADING_NAMES = frozenset({"table of contents", "toc"})
-
 
 # ---------------------------------------------------------------------------
 # Anchor / slug
@@ -49,7 +77,7 @@ def github_anchor(text: str) -> str:
     - Remove inline formatting (bold, italic, code backticks, strikethrough)
     - Lowercase
     - Keep word chars (unicode), spaces, hyphens
-    - Spaces → hyphens, collapse consecutive hyphens
+    - Spaces → hyphens (consecutive hyphens preserved, matching GitHub)
     """
     text = text.strip().lower()
     # Remove markdown links but keep link text
@@ -58,12 +86,10 @@ def github_anchor(text: str) -> str:
     text = re.sub(r"\*\*|__|[*_`~]", "", text)
     # Keep only word chars, spaces, hyphens
     text = re.sub(r"[^\w\s\-]", "", text)
-    # Spaces → hyphens
-    text = re.sub(r"\s+", "-", text)
-    # Collapse consecutive hyphens
-    text = re.sub(r"-{2,}", "-", text)
+    # Each space → hyphen individually (GitHub preserves consecutive hyphens)
+    text = re.sub(r"\s", "-", text)
     return text.strip("-")
-
+# @cpt-end:cpt-cypilot-algo-traceability-validation-toc-utils:p1:inst-toc-util-datamodel
 
 # ---------------------------------------------------------------------------
 # Heading parsing
@@ -88,15 +114,16 @@ def parse_headings(
         skip_toc_heading: If True, skip headings named "Table of Contents" or "TOC".
     """
     headings: List[Tuple[int, str]] = []
-    in_fence = False
+    fence: Optional[Tuple[str, int]] = None
     first_skipped = False
 
     for line in lines:
         # Track fenced code blocks (``` or ~~~ with 3+ chars)
-        if _FENCE_RE.match(line.strip()):
-            in_fence = not in_fence
+        new_fence = _fence_update(line, fence)
+        if new_fence != fence:
+            fence = new_fence
             continue
-        if in_fence:
+        if fence is not None:
             continue
 
         m = _HEADING_RE.match(line)
@@ -120,7 +147,6 @@ def parse_headings(
 
     return headings
 # @cpt-end:cpt-cypilot-algo-traceability-validation-toc-utils:p1:inst-toc-util-parse-headings
-
 
 # ---------------------------------------------------------------------------
 # TOC building
@@ -189,6 +215,22 @@ def build_toc(
     return "\n".join(toc_lines)
 # @cpt-end:cpt-cypilot-algo-traceability-validation-toc-utils:p1:inst-toc-util-build-toc
 
+# @cpt-begin:cpt-cypilot-algo-traceability-validation-toc-utils:p1:inst-toc-util-helpers
+def _next_heading_or_separator(
+    lines: List[str], start: int,
+) -> Optional[int]:
+    """Return index of next heading or ``---`` separator, skipping fenced blocks."""
+    fence: Optional[Tuple[str, int]] = None
+    for j in range(start, len(lines)):
+        new_fence = _fence_update(lines[j], fence)
+        if new_fence != fence:
+            fence = new_fence
+            continue
+        if fence is not None:
+            continue
+        if re.match(r"^#{1,6}\s", lines[j]) or lines[j].strip() == "---":
+            return j
+    return None
 
 def _unique_slug(text: str, slug_counts: Dict[str, int]) -> str:
     """Return a unique GitHub-compatible slug, tracking duplicates."""
@@ -199,7 +241,7 @@ def _unique_slug(text: str, slug_counts: Dict[str, int]) -> str:
     else:
         slug_counts[slug] = 0
         return slug
-
+# @cpt-end:cpt-cypilot-algo-traceability-validation-toc-utils:p1:inst-toc-util-helpers
 
 # ---------------------------------------------------------------------------
 # TOC insertion — marker-based (for CLI ``cypilot toc``)
@@ -244,12 +286,13 @@ def insert_toc_markers(
     else:
         # Insert after first H1, or at position 0
         insert_pos = 0
-        in_fence = False
+        fence: Optional[Tuple[str, int]] = None
         for i, line in enumerate(lines):
-            if _FENCE_RE.match(line.strip()):
-                in_fence = not in_fence
+            new_fence = _fence_update(line, fence)
+            if new_fence != fence:
+                fence = new_fence
                 continue
-            if in_fence:
+            if fence is not None:
                 continue
             m = _HEADING_RE.match(line)
             if m and len(m.group(1)) == 1:
@@ -264,7 +307,6 @@ def insert_toc_markers(
 
     return "\n".join(new_lines)
 # @cpt-end:cpt-cypilot-algo-traceability-validation-toc-utils:p1:inst-toc-util-insert-markers
-
 
 # ---------------------------------------------------------------------------
 # TOC insertion — heading-based (for blueprint-generated content)
@@ -304,16 +346,19 @@ def insert_toc_heading(
 
     # --- Try replacing an existing ToC section ---
     toc_start = toc_end = None
+    fence: Optional[Tuple[str, int]] = None
     for i, line in enumerate(lines):
+        new_fence = _fence_update(line, fence)
+        if new_fence != fence:
+            fence = new_fence
+            continue
+        if fence is not None:
+            continue
         if re.match(r"^##\s+Table of Contents\s*$", line):
             toc_start = i
-            # End = next heading or --- separator
-            for j in range(i + 1, len(lines)):
-                if re.match(r"^#{1,6}\s", lines[j]) or lines[j].strip() == "---":
-                    toc_end = j
-                    break
-            else:
-                toc_end = len(lines)
+            # End = next heading or --- separator (fence-aware)
+            end = _next_heading_or_separator(lines, i + 1)
+            toc_end = end if end is not None else len(lines)
             break
 
     if toc_start is not None and toc_end is not None:
@@ -344,7 +389,14 @@ def insert_toc_heading(
             return f"{before}\n\n{toc_section}\n\n{after}"
 
     # No --- found: insert after first heading + metadata block
+    fence_fb: Optional[Tuple[str, int]] = None
     for j in range(i, len(lines)):
+        new_fence = _fence_update(lines[j], fence_fb)
+        if new_fence != fence_fb:
+            fence_fb = new_fence
+            continue
+        if fence_fb is not None:
+            continue
         if re.match(r"^#{1,6}\s", lines[j]):
             k = j + 1
             while k < len(lines):
@@ -361,11 +413,11 @@ def insert_toc_heading(
     return f"{toc_section}\n\n{content}"
 # @cpt-end:cpt-cypilot-algo-traceability-validation-toc-utils:p1:inst-toc-util-insert-heading
 
-
 # ---------------------------------------------------------------------------
 # File-level processing (for CLI command)
 # ---------------------------------------------------------------------------
 
+# @cpt-begin:cpt-cypilot-algo-traceability-validation-toc-utils:p1:inst-toc-util-helpers
 def _strip_manual_toc(content: str) -> Tuple[str, bool]:
     """Remove a standalone ``## Table of Contents`` section not inside markers.
 
@@ -378,13 +430,14 @@ def _strip_manual_toc(content: str) -> Tuple[str, bool]:
     # or will be inserted (i.e., always strip manual TOC for marker-based flow).
     toc_heading_start = None
     toc_heading_end = None
-    in_fence = False
+    fence: Optional[Tuple[str, int]] = None
 
     for i, line in enumerate(lines):
-        if _FENCE_RE.match(line.strip()):
-            in_fence = not in_fence
+        new_fence = _fence_update(line, fence)
+        if new_fence != fence:
+            fence = new_fence
             continue
-        if in_fence:
+        if fence is not None:
             continue
 
         # Skip lines inside <!-- toc --> markers — those are ours
@@ -398,13 +451,9 @@ def _strip_manual_toc(content: str) -> Tuple[str, bool]:
 
         if re.match(r"^##\s+Table of Contents\s*$", line):
             toc_heading_start = i
-            # Find end: next heading or --- separator
-            for j in range(i + 1, len(lines)):
-                if re.match(r"^#{1,6}\s", lines[j]) or lines[j].strip() == "---":
-                    toc_heading_end = j
-                    break
-            else:
-                toc_heading_end = len(lines)
+            # Find end: next heading or --- separator (fence-aware)
+            end = _next_heading_or_separator(lines, i + 1)
+            toc_heading_end = end if end is not None else len(lines)
             break
 
     if toc_heading_start is None:
@@ -420,7 +469,7 @@ def _strip_manual_toc(content: str) -> Tuple[str, bool]:
 
     new_lines = lines[:start] + lines[end:]
     return "\n".join(new_lines), True
-
+# @cpt-end:cpt-cypilot-algo-traceability-validation-toc-utils:p1:inst-toc-util-helpers
 
 # @cpt-begin:cpt-cypilot-algo-traceability-validation-toc-utils:p1:inst-toc-util-process-file
 def process_file(
@@ -468,14 +517,13 @@ def process_file(
     return result
 # @cpt-end:cpt-cypilot-algo-traceability-validation-toc-utils:p1:inst-toc-util-process-file
 
-
 # ---------------------------------------------------------------------------
 # TOC validation
 # ---------------------------------------------------------------------------
 
+# @cpt-begin:cpt-cypilot-algo-traceability-validation-toc-utils:p1:inst-toc-util-helpers
 # Regex to extract markdown links from TOC entries: ``[text](#anchor)``
 _TOC_LINK_RE = re.compile(r"\[([^\]]+)\]\(#([^)]+)\)")
-
 
 def _find_toc_section(
     lines: List[str],
@@ -490,13 +538,18 @@ def _find_toc_section(
     Line indices are 0-based and inclusive/exclusive (``lines[start:end]``).
     """
     # Try heading-based first
+    fence: Optional[Tuple[str, int]] = None
     for i, line in enumerate(lines):
+        new_fence = _fence_update(line, fence)
+        if new_fence != fence:
+            fence = new_fence
+            continue
+        if fence is not None:
+            continue
         if re.match(r"^##\s+Table of Contents\s*$", line):
-            # Find end: next heading or --- separator
-            for j in range(i + 1, len(lines)):
-                if re.match(r"^#{1,6}\s", lines[j]) or lines[j].strip() == "---":
-                    return (i, j, "heading")
-            return (i, len(lines), "heading")
+            # Find end: next heading or --- separator (fence-aware)
+            end = _next_heading_or_separator(lines, i + 1)
+            return (i, end if end is not None else len(lines), "heading")
 
     # Try marker-based
     start_idx = None
@@ -508,7 +561,6 @@ def _find_toc_section(
             return (start_idx, i + 1, "markers")
 
     return None
-
 
 def _extract_toc_entries(
     lines: List[str],
@@ -525,7 +577,6 @@ def _extract_toc_entries(
             entries.append((display.strip(), anchor.strip(), i + 1))
     return entries
 
-
 def _build_expected_anchors(
     headings: List[Tuple[int, str]],
 ) -> Dict[str, str]:
@@ -539,7 +590,7 @@ def _build_expected_anchors(
         slug = _unique_slug(text, slug_counts)
         result[slug] = text
     return result
-
+# @cpt-end:cpt-cypilot-algo-traceability-validation-toc-utils:p1:inst-toc-util-helpers
 
 # @cpt-begin:cpt-cypilot-algo-traceability-validation-toc-utils:p1:inst-toc-util-validate
 def validate_toc(
@@ -673,11 +724,19 @@ def validate_toc(
     return {"errors": errors, "warnings": warnings}
 # @cpt-end:cpt-cypilot-algo-traceability-validation-toc-utils:p1:inst-toc-util-validate
 
-
+# @cpt-begin:cpt-cypilot-algo-traceability-validation-toc-utils:p1:inst-toc-util-helpers
 def _find_heading_line(lines: List[str], heading_text: str) -> int:
     """Find the 1-based line number of a heading by its text."""
+    fence: Optional[Tuple[str, int]] = None
     for i, line in enumerate(lines):
+        new_fence = _fence_update(line, fence)
+        if new_fence != fence:
+            fence = new_fence
+            continue
+        if fence is not None:
+            continue
         m = _HEADING_RE.match(line)
         if m and m.group(2).strip() == heading_text:
             return i + 1
     return 1
+# @cpt-end:cpt-cypilot-algo-traceability-validation-toc-utils:p1:inst-toc-util-helpers
