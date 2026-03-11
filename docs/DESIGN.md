@@ -111,6 +111,7 @@ The architecture follows three core tenets: agents are autonomous executors (tra
 - `cpt-katapult-adr-multi-strategy-transfers` — Multiple transfer strategies (streaming, S3-staged, direct) with automatic topology-based selection
 - `cpt-katapult-adr-use-go` — Go as the implementation language for control plane, agents, and CLI
 - `cpt-katapult-adr-grpc-agent-communication` — gRPC bidirectional streaming for agent-to-control-plane communication
+- `cpt-katapult-adr-database-authoritative-projection` — PostgreSQL as authoritative store for all transfer state; VolumeTransfer CRD status as read-only projection
 
 #### Functional Drivers
 
@@ -506,7 +507,7 @@ Isolates credential issuance and lifecycle management. Every transfer gets uniqu
 
 ##### Why this component exists
 
-Integrates Katapult with the Kubernetes API, enabling declarative transfer management via VolumeTransfer custom resources. Supports GitOps workflows and standard `kubectl` tooling.
+Implements the Database-Authoritative Projection pattern (ADR-0005) by projecting transfer state from PostgreSQL into VolumeTransfer CRD status. Enables Kubernetes-native integration (kubectl, GitOps, admission webhooks) without CRD owning the authoritative state. The sync direction is strictly one-way: PostgreSQL → CRD status.
 
 ##### Responsibility scope
 
@@ -518,6 +519,7 @@ Integrates Katapult with the Kubernetes API, enabling declarative transfer manag
 ##### Responsibility boundaries
 
 - Does not manage transfer state directly (delegates to Transfer Orchestrator)
+- Does not own transfer state (PostgreSQL is the authoritative store; CRD status is a read-only projection per ADR-0005)
 - Does not manage agent connections
 - Does not serve external API traffic (API Server handles that)
 
@@ -691,9 +693,9 @@ Provides a single-command local development environment that provisions the full
 | `spec.strategy` | string (optional) | Manual strategy override (stream, s3, direct) |
 | `spec.allowOverwrite` | bool | Allow overwriting non-empty destination |
 | `spec.retry` | RetrySpec | Max attempts, backoff config |
-| `status.phase` | string | Current transfer state |
-| `status.progress` | ProgressStatus | Bytes transferred, total, speed, ETA, chunks |
-| `status.conditions` | []Condition | Standard Kubernetes conditions |
+| `status.phase` | string | Projected transfer phase (synced from PostgreSQL) |
+| `status.progress` | ProgressStatus | Projected progress (synced from PostgreSQL) |
+| `status.conditions` | []Condition | Standard Kubernetes conditions (set by CRD Controller) |
 
 ### 3.4 Internal Dependencies
 
