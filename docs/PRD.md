@@ -539,7 +539,7 @@ Once an agent receives a transfer command and the data path is established, the 
 
 The system **MUST** model each transfer as a Kubernetes Custom Resource (`VolumeTransfer`) with a status subresource. The CRD **MUST** support declarative specification of source, destination, transfer options, and retry configuration. Transfer status **MUST** be queryable via standard `kubectl get` commands.
 
-**Rationale**: The CRD/controller pattern follows the Kubernetes operator model, enabling reconciliation, GitOps integration, and standard K8s tooling.
+**Rationale**: The CRD/controller pattern follows the Kubernetes operator model, enabling reconciliation, GitOps integration, and standard K8s tooling. The CRD serves as a Kubernetes-native projection of transfer state managed by the control plane (see ADR-0005). PostgreSQL is the authoritative store for transfer state; the CRD status subresource reflects this state for kubectl and GitOps integration.
 
 **Actors**: `cpt-katapult-actor-infra-engineer`
 

@@ -307,7 +307,7 @@ Satisfy the API, CLI, and CRD functional requirements by providing a unified int
 
 ### Not Applicable
 
-Not applicable — The transfer state machine is defined in DESIGN (`cpt-katapult-component-transfer-orchestrator`) and detailed in `cpt-katapult-feature-transfer-engine`. The CRD Controller mirrors transfer state into the VolumeTransfer status subresource but does not own or define state transitions. The API and CLI layers are stateless request handlers.
+Not applicable — The transfer state machine is defined in DESIGN (`cpt-katapult-component-transfer-orchestrator`) and detailed in `cpt-katapult-feature-transfer-engine`. The CRD Controller mirrors transfer state into the VolumeTransfer status subresource but does not own or define state transitions (see ADR-0005: Database-Authoritative Projection). The API and CLI layers are stateless request handlers.
 
 ## 5. Definitions of Done
 
